@@ -1,0 +1,13 @@
+# dependencies
+node_modules/
+zomes_stay/node_modules/
+server/node_modules/
+
+# environment
+.env
+zomes_stay/.env
+server/.env
+
+# build output
+dist/
+build/
