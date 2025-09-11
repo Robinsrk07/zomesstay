@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Body from "./components/Body";
 import HomePage from "./components/HomePage";
 import LoginPage from "./pages/LoginPage";
-import SignUp from "./pages/signUp";
+//import SignUp from "./pages/signUp";
 import OtpVerification from "./pages/OtpVerification";
 import OtpVerified from "./pages/OtpVerified";
 import Detials from "./pages/DetialsPage";
