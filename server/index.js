@@ -20,6 +20,9 @@ try {
 }
 const PropertyRouter = require('./src/routes/adminRoutes/property.routes');
 const HostRouter = require('./src/routes/adminRoutes/host.routes');
+const AvailabilityRouter = require('./src/routes/adminRoutes/avalibility.routes');
+const SpecialRateRoute   = require("./src/routes/adminRoutes/specialRate.routes")
+const MealPlanRouter = require('./src/routes/adminRoutes/mealPlan.routes');
 
 
 // Enable CORS
@@ -35,13 +38,18 @@ app.use(express.urlencoded({ extended: true }));
 
 // Serve static files from uploads directory
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/', (req, res, next) => {
+  console.log(`Incoming request: ${req.method} ${req.url}`);
+  next();
+}, AvailabilityRouter);
 app.use('/', adminAuthRouter);
 app.use('/', PropertyRouter);
 app.use('/', HostRouter);
-//app.use('/api/v2/user', userAuthRouter);
+app.use('/',SpecialRateRoute)
+app.use('/', MealPlanRouter);
 
 
-// Error handling middleware
+
 app.use((err, req, res, next) => {
   console.error('Error:', err);
   res.status(500).json({

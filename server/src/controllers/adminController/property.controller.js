@@ -44,6 +44,21 @@ function fileToUrl(req, f) {
   return `${base}${rel}`;
 }
 
+const safeJSON = (str, fallback) => {
+  if (!str) return fallback;
+  if (typeof str === 'object') return str;
+  try { return JSON.parse(str); } catch { return fallback; }
+};
+
+const DAYS_TO_SEED = Number(process.env.RATECALENDAR_SEED_DAYS || 180);
+
+/** Build a UTC date with day offset to avoid DST/timezone surprises */
+function addDaysUtc(base, days) {
+  const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate()));
+  d.setUTCDate(d.getUTCDate() + days);
+  return d;
+}
+
 /* -------------------------- controller -------------------------- */
 const PropertyController = {
   // ========== AMENITIES ==========
@@ -118,6 +133,8 @@ const PropertyController = {
   },
 
   // ========== FACILITIES ==========
+
+
   createFacility: async (req, res) => {
     try {
       const { name, isActive = true } = req.body;
@@ -189,6 +206,9 @@ const PropertyController = {
   },
 
   // ========== SAFETY HYGIENE ==========
+
+
+
   createSafetyHygiene: async (req, res) => {
     try {
       const { name, isActive = true } = req.body;
@@ -260,6 +280,8 @@ const PropertyController = {
   },
 
   // ========== PROPERTY TYPE ==========
+
+
   createPropertyType: async (req, res) => {
     try {
       const { name } = req.body;
@@ -316,9 +338,11 @@ const PropertyController = {
   },
 
   // ========== ROOM TYPE ==========
+
+
   createRoomType: async (req, res) => {
     try {
-      const { name } = req.body;
+      const { name, } = req.body;
       const roomType = await prisma.roomType.create({ data: { name } });
       res.status(201).json({ success: true, message: 'Room type created', data: roomType });
     } catch (err) {
@@ -369,545 +393,223 @@ const PropertyController = {
   },
 
   // ========== PROPERTY ==========
-createProperty: async (req, res) => {
-  let uploadedFiles = [];
-  
+
+
+createProperty:async (req, res) => {
   try {
-    // Store uploaded files for potential cleanup
-    uploadedFiles = req.files || [];
-    
-    // ----------- READ/VALIDATE BASIC FIELDS -----------
+    // 1) Extract + sanitize
     const {
       title,
-      ownerHostId,
-      propertyTypeId,
-      amenityIds = [],
-      facilityIds = [],
-      safetyIds = [],
-      roomTypeIds = [],
-      coverImageIndex = 0,
-      status,
       description,
       rulesAndPolicies,
-      location
+      status = 'active',
+      propertyTypeId,
+      ownerHostId,
+      location,
+      amenityIds,
+      facilityIds,
+      safetyIds,
+      roomtypes,
     } = req.body;
 
-    // Basic validation
-    if (!title || !ownerHostId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Title and ownerHostId are required' 
-      });
+    if (!title?.trim()) {
+      return res.status(400).json({ success: false, message: 'Title is required' });
     }
 
-    if (!req.files || !req.files.length) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'At least one media file is required' 
-      });
-    }
+    const amenityList = safeJSON(amenityIds, []).filter(Boolean);
+    const facilityList = safeJSON(facilityIds, []).filter(Boolean);
+    const safetyList  = safeJSON(safetyIds,  []).filter(Boolean);
+    const roomTypeList = safeJSON(roomtypes,  []).filter(Boolean); // [{roomTypeId, basePrice}, ...]
 
-    // ----------- NORMALIZE ROOMS -----------
-    const roomsRaw = normalizeToArray(req.body.rooms);
-
-    const parsedRooms = roomsRaw.map((s, i) => {
-      const obj = parseJSON(s, s); // if already object, keep as is
-      if (!obj || typeof obj !== 'object') {
-        throw new Error(`rooms[${i}] is not valid JSON/object`);
-      }
-      return obj;
-    });
-
-    const rooms = [...parsedRooms];
-
-    if (!rooms.length) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'At least one room is required' 
-      });
-    }
-
-    // Additional validation for reasonable limits
-    if (rooms.length > 100) {
-      return res.status(400).json({
-        success: false,
-        message: 'Too many rooms (maximum 100 allowed)'
-      });
-    }
-
-    // Validate room data
-    for (const [index, room] of rooms.entries()) {
-      if (!room.roomTypeId) {
-        return res.status(400).json({
-          success: false,
-          message: `Room ${index + 1}: roomTypeId is required`
-        });
-      }
-      
-      if (room.price && (isNaN(room.price) || Number(room.price) < 0)) {
-        return res.status(400).json({
-          success: false,
-          message: `Room ${index + 1}: Price must be a non-negative number`
-        });
-      }
-      
-      if (room.maxOccupancy && (isNaN(room.maxOccupancy) || Number(room.maxOccupancy) <= 0)) {
-        return res.status(400).json({
-          success: false,
-          message: `Room ${index + 1}: Max occupancy must be a positive number`
-        });
-      }
-      
-      if (room.spaceSqft && (isNaN(room.spaceSqft) || Number(room.spaceSqft) <= 0)) {
-        return res.status(400).json({
-          success: false,
-          message: `Room ${index + 1}: Space sqft must be a positive number`
-        });
-      }
-    }
-
-    // ----------- PRE-VALIDATION OUTSIDE TX -----------
-    const toIdArray = (v) => {
-      if (v == null) return [];
-      if (Array.isArray(v)) return v.filter(Boolean);
-
-      if (typeof v === 'string') {
-        const s = v.trim();
-        if (!s) return [];
-        // JSON array string?
-        const parsed = parseJSON(s, null);
-        if (Array.isArray(parsed)) return parsed.filter(Boolean);
-        // Comma-separated?
-        if (s.includes(',')) return s.split(',').map(x => x.trim()).filter(Boolean);
-        // Single id
-        return [s];
-      }
-      return [];
-    };
-
-    const amenityList = Array.from(new Set(toIdArray(amenityIds)));
-    const facilityList = Array.from(new Set(toIdArray(facilityIds)));
-    const safetyList = Array.from(new Set(toIdArray(safetyIds)));
-    const propRoomTypes = Array.from(new Set(toIdArray(roomTypeIds)));
-
-    const roomRTsFromRooms = Array.from(new Set(rooms.map(r => r.roomTypeId).filter(Boolean)));
-
-    // Validate host
-    {
-      const host = await prisma.host.findUnique({
-        where: { id: ownerHostId },
-        select: { id: true, isDeleted: true }
-      });
-      if (!host || host.isDeleted) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Invalid ownerHostId' 
-        });
-      }
-    }
-
-    // Validate property type (optional)
-    if (propertyTypeId) {
-      const pt = await prisma.propertyType.findUnique({
-        where: { id: propertyTypeId },
-        select: { id: true, isDeleted: true }
-      });
-      if (!pt || pt.isDeleted) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Invalid propertyTypeId' 
-        });
-      }
-    }
-
-    // Helper: assert IDs exist
+    // 2) Validate foreign keys (outside txn is fine; you can move inside if you want strict serialization)
     const mustExist = async (model, ids, label) => {
       if (!ids.length) return;
-      const rows = await model.findMany({
-        where: { id: { in: ids }, isDeleted: false },
-        select: { id: true }
-      });
-      const ok = new Set(rows.map(r => r.id));
-      const missing = [...new Set(ids)].filter(id => !ok.has(id));
-      if (missing.length) {
-        throw new Error(`Invalid ${label} id(s): ${missing.join(', ')}`);
-      }
+      const rows = await model.findMany({ where: { id: { in: ids }, isDeleted: false }, select: { id: true } });
+      const have = new Set(rows.map(r => r.id));
+      const missing = [...new Set(ids)].filter(x => !have.has(x));
+      if (missing.length) throw new Error(`${label} not found: ${missing.join(', ')}`);
     };
 
-    await mustExist(prisma.amenity, amenityList, 'amenity');
-    await mustExist(prisma.facility, facilityList, 'facility');
-    await mustExist(prisma.safetyHygiene, safetyList, 'safety');
-    await mustExist(prisma.roomType, propRoomTypes, 'roomType');
-    await mustExist(prisma.roomType, roomRTsFromRooms, 'roomType (in rooms)');
-
-    // Prevent duplicates
-    {
-      const existing = await prisma.property.findFirst({
-        where: { title, ownerHostId, isDeleted: false },
-        select: { id: true }
-      });
-      if (existing) {
-        return res.status(409).json({
-          success: false,
-          message: 'A property with this title already exists for this host.'
-        });
-      }
+    if (propertyTypeId) {
+      const pt = await prisma.propertyType.findFirst({ where: { id: propertyTypeId, isDeleted: false }, select: { id: true } });
+      if (!pt) return res.status(404).json({ success: false, message: 'Property type not found' });
     }
 
-    // ----------- PREP FILES (works with upload.any()) -----------
+    if (ownerHostId) {
+      const host = await prisma.host.findFirst({ where: { id: ownerHostId, isDeleted: false }, select: { id: true } });
+      if (!host) return res.status(404).json({ success: false, message: 'Owner host not found' });
+    }
+
+    await mustExist(prisma.amenity, amenityList, 'Amenity');
+    await mustExist(prisma.facility, facilityList, 'Facility');
+    await mustExist(prisma.safetyHygiene, safetyList, 'Safety hygiene');
+    await mustExist(prisma.roomType, roomTypeList.map(rt => rt.roomTypeId), 'RoomType');
+
+    // 3) Validate files (kept minimal; adapt to your actual uploader)
     const filesByField = (req.files || []).reduce((acc, f) => {
       (acc[f.fieldname] ||= []).push(f);
       return acc;
     }, {});
+    const mediaFiles = filesByField['media'] || [];
+    const allowedImage = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+    const allowedVideo = ['video/mp4', 'video/webm', 'video/mov'];
+    const maxFileSize = 50 * 1024 * 1024;
 
-    const propMediaFiles = filesByField['media'] || [];
-    
-    // Validate file types and sizes
-    const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
-    const allowedVideoTypes = ['video/mp4', 'video/webm', 'video/mov'];
-    const maxFileSize = 50 * 1024 * 1024; // 50MB
-    
-    for (const file of propMediaFiles) {
-      if (!allowedImageTypes.includes(file.mimetype) && !allowedVideoTypes.includes(file.mimetype)) {
-        return res.status(400).json({
-          success: false,
-          message: `Invalid file type: ${file.mimetype}. Only images and videos are allowed.`
-        });
+    for (const f of mediaFiles) {
+      const okType = allowedImage.includes(f.mimetype) || allowedVideo.includes(f.mimetype);
+      if (!okType) {
+        return res.status(400).json({ success: false, message: `Invalid file type: ${f.mimetype}` });
       }
-      
-      if (file.size > maxFileSize) {
-        return res.status(400).json({
-          success: false,
-          message: `File too large: ${file.originalname}. Maximum size is 50MB.`
-        });
+      if (f.size > maxFileSize) {
+        return res.status(400).json({ success: false, message: `File too large: ${f.originalname}` });
       }
     }
 
-    const propertyMedia = propMediaFiles.map((f, idx) => {
-      const url = fileToUrl(req, f);
+    // 4) Transaction: create property, links, roomTypes, media, then seed RateCalendar
+    const result = await prisma.$transaction(async (tx) => {
+      // Create Property w/ nested creates
+      const property = await tx.property.create({
+        data: {
+          title: title.trim(),
+          description: description || null,
+          rulesAndPolicies: rulesAndPolicies || null,
+          status,
+          propertyTypeId: propertyTypeId || null,
+          ownerHostId: ownerHostId || null,
+          location: location ? safeJSON(location, null) : null,
+
+          // property-level joins
+          amenities: amenityList.length
+            ? { create: amenityList.map(id => ({ amenity: { connect: { id } } })) }
+            : undefined,
+          facilities: facilityList.length
+            ? { create: facilityList.map(id => ({ facility: { connect: { id } } })) }
+            : undefined,
+          safeties: safetyList.length
+            ? { create: safetyList.map(id => ({ safety: { connect: { id } } })) }
+            : undefined,
+
+          // propertyRoomTypes
+          roomTypes: roomTypeList.length
+            ? {
+                create: roomTypeList.map(rt => ({
+                  roomType: { connect: { id: rt.roomTypeId } },
+                  basePrice: rt.basePrice, // Decimal
+                })),
+              }
+            : undefined,
+
+          // media
+          media: mediaFiles.length
+            ? {
+                create: mediaFiles.map((file, idx) => ({
+                  url: file.path, // or your public URL builder
+                  type: file.mimetype.startsWith('image') ? 'image' : 'video',
+                  isFeatured: idx === 0,
+                  order: idx,
+                })),
+              }
+            : undefined,
+        },
+        include: {
+          roomTypes: true,   // we need these ids to seed rate rows
+          media: true,
+          amenities: true,
+          facilities: true,
+          safeties: true,
+        },
+      });
+
+      // Seed RateCalendar for each PropertyRoomType
+      if (property.roomTypes?.length) {
+        const today = new Date(); // seed starting today (UTC-normalized below)
+        for (const prt of property.roomTypes) {
+          // Build rows in memory
+          const rows = Array.from({ length: DAYS_TO_SEED }).map((_, i) => ({
+            propertyRoomTypeId: prt.id,
+            date: addDaysUtc(today, i),        // one row per day
+            price: prt.basePrice,              // seed with basePrice
+            isOpen: true,
+            isDeleted: false,
+          }));
+          // Bulk insert
+          await tx.rateCalendar.createMany({
+            data: rows,
+            skipDuplicates: true, // idempotence if retried
+          });
+        }
+      }
+
+      // Optionally compute/return a minimal response object
       return {
-        url,
-        type: f.mimetype?.startsWith('image/') ? 'image' : 'video',
-        isFeatured: Number(coverImageIndex) === idx,
-        order: idx
+        id: property.id,
+        title: property.title,
+        status: property.status,
+        roomTypes: property.roomTypes.map(rt => ({
+          id: rt.id,
+          roomTypeId: rt.roomTypeId,
+          basePrice: rt.basePrice,
+          isActive: rt.isActive,
+        })),
       };
     });
 
-    const coverImage =
-      propertyMedia.find(m => m.isFeatured)?.url
-      ?? propertyMedia[0]?.url
-      ?? null;
-
-    // ----------- DO ALL WRITES IN ONE TRANSACTION -----------
-    const result = await prisma.$transaction(async (tx) => {
-      const { id: propertyId } = await tx.property.create({
-        data: {
-          title,
-          description: description ?? null,
-          rulesAndPolicies: rulesAndPolicies ?? null,
-          status: status ?? 'active',
-          location: parseJSON(location, null),
-          ownerHostId,
-          propertyTypeId: propertyTypeId || null,
-          coverImage,
-          ...(propRoomTypes.length && { 
-            roomTypes: { connect: propRoomTypes.map(id => ({ id })) } 
-          }),
-        },
-        select: { id: true }
-      });
-
-      const createdRooms = [];
-      for (const [index, roomDataRaw] of rooms.entries()) {
-        const roomData = typeof roomDataRaw === 'string'
-          ? parseJSON(roomDataRaw, {})
-          : roomDataRaw || {};
-
-        if (!roomData.roomTypeId) {
-          throw new Error(`rooms[${index}].roomTypeId is required`);
-        }
-
-        const uploads = filesByField[`roomImages_${index}`] || [];
-        
-        // Validate room image files
-        for (const file of uploads) {
-          if (!allowedImageTypes.includes(file.mimetype)) {
-            throw new Error(`Invalid room image type: ${file.mimetype} for room ${index + 1}`);
-          }
-          
-          if (file.size > maxFileSize) {
-            throw new Error(`Room image too large for room ${index + 1}: ${file.originalname}`);
-          }
-        }
-        
-        const uploadedImages = uploads.map((f, idx) => ({
-          url: fileToUrl(req, f),
-          isFeatured: idx === 0,
-          caption: `Room Image ${idx + 1}`,
-          order: idx
-        }));
-
-        let existingImages = roomData.existingImages || [];
-        if (typeof existingImages === 'string') {
-          existingImages = parseJSON(existingImages, []);
-        }
-        if (!Array.isArray(existingImages)) existingImages = [];
-        
-        const existingImagesData = existingImages.map((url, idx) => ({
-          url,
-          isFeatured: idx === 0 && uploadedImages.length === 0,
-          caption: `Room Image ${uploadedImages.length + idx + 1}`,
-          order: uploadedImages.length + idx
-        }));
-
-        const roomImages = [...uploadedImages, ...existingImagesData];
-
-        const room = await tx.room.create({
-          data: {
-            propertyId,
-            roomTypeId: roomData.roomTypeId,
-            name: roomData.name || `Room ${index + 1}`,
-            code: roomData.code || null,
-            spaceSqft: roomData.spaceSqft ? parseInt(roomData.spaceSqft, 10) : null,
-            maxOccupancy: roomData.maxOccupancy ? parseInt(roomData.maxOccupancy, 10) : 2,
-            price: roomData.price ? Number(roomData.price) : 0,
-            images: roomImages,
-            status: roomData.status || 'active',
-          },
-          include: { roomType: true }
-        });
-
-        // CHANGED: normalize room amenity IDs with toIdArray
-        const roomAmenityIds = toIdArray(roomData.amenityIds);
-        if (roomAmenityIds.length) {
-          await tx.roomAmenity.createMany({
-            data: Array.from(new Set(roomAmenityIds)).map(amenityId => ({
-              roomId: room.id,
-              amenityId
-            }))
-          });
-        }
-
-        createdRooms.push(room);
-      }
-
-      if (amenityList.length) {
-        await tx.propertyAmenity.createMany({
-          data: amenityList.map(amenityId => ({ propertyId, amenityId }))
-        });
-      }
-      
-      if (facilityList.length) {
-        await tx.propertyFacility.createMany({
-          data: facilityList.map(facilityId => ({ propertyId, facilityId }))
-        });
-      }
-      
-      if (safetyList.length) {
-        await tx.propertySafety.createMany({
-          data: safetyList.map(safetyId => ({ propertyId, safetyId }))
-        });
-      }
-
-      if (propertyMedia.length) {
-        await tx.propertyMedia.createMany({
-          data: propertyMedia.map(m => ({
-            propertyId,
-            url: m.url,
-            type: m.type,
-            isFeatured: m.isFeatured,
-            order: m.order
-          }))
-        });
-      }
-
-      const property = await tx.property.findUnique({
-        where: { id: propertyId },
-        include: {
-          amenities: { include: { amenity: true } },
-          facilities: { include: { facility: true } },
-          safeties: { include: { safety: true } },
-          roomTypes: true,
-          media: true,
-          rooms: {
-            include: {
-              roomType: true,
-              amenities: { include: { amenity: true } }
-            }
-          }
-        }
-      });
-
-      return { property };
-    }, {
-      timeout: 30000, // 30 seconds timeout for large operations
-      isolationLevel: 'Serializable' // Highest isolation level
-    }); // rollback on any throw
-
-    // Success - files are now committed with the database transaction
+    // 5) Success
     return res.status(201).json({
       success: true,
-      message: 'Property created successfully',
-      data: result
+      message: 'Property created & rate calendar seeded',
+      data: result,
     });
 
   } catch (err) {
-    console.error('createProperty Error:', {
-      message: err.message,
-      stack: err.stack,
-      code: err.code,
-      timestamp: new Date().toISOString(),
-      userId: req.user?.id,
-      hostId: req.body?.ownerHostId
-    });
-
-    // Clean up uploaded files on any error
-    if (uploadedFiles.length > 0) {
-      try {
-        // If you have a cleanup function, uncomment and implement:
-        // await cleanupUploadedFiles(uploadedFiles);
-        console.log('Files would be cleaned up here:', uploadedFiles.map(f => f.filename));
-      } catch (cleanupErr) {
-        console.error('File cleanup error:', cleanupErr);
-      }
-    }
-
-    // Handle specific Prisma errors
-    if (err.code === 'P2002') {
-      return res.status(409).json({
-        success: false,
-        message: 'A resource with this data already exists',
-        error: 'DUPLICATE_RESOURCE'
-      });
-    }
-
-    if (err.code === 'P2003') {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid reference to related data',
-        error: 'FOREIGN_KEY_CONSTRAINT'
-      });
-    }
-
-    if (err.code === 'P2025') {
-      return res.status(404).json({
-        success: false,
-        message: 'Related record not found',
-        error: 'RECORD_NOT_FOUND'
-      });
-    }
-
-    // Handle transaction timeout
-    if (err.message?.includes('timeout') || err.code === 'P2024') {
-      return res.status(408).json({
-        success: false,
-        message: 'Operation timed out. Please try again.',
-        error: 'TIMEOUT'
-      });
-    }
-
-    // Handle validation errors (our custom errors)
-    if (err.message?.includes('rooms[') || 
-        err.message?.includes('Invalid') || 
-        err.message?.includes('required') ||
-        err.message?.includes('Room ')) {
-      return res.status(400).json({
-        success: false,
-        message: err.message,
-        error: 'VALIDATION_ERROR'
-      });
-    }
-
-    // Handle file-related errors
-    if (err.message?.includes('file') || err.message?.includes('File')) {
-      return res.status(400).json({
-        success: false,
-        message: err.message,
-        error: 'FILE_ERROR'
-      });
-    }
-
-    // Generic server error
+    console.error('createProperty (txn) error:', err);
     return res.status(500).json({
       success: false,
-      message: 'An internal server error occurred. Please try again later.',
-      error: 'INTERNAL_SERVER_ERROR'
+      message: err.message || 'Error creating property',
     });
   }
-},
-
-
+}
+,
 getProperties: async (req, res) => {
   try {
-    const { page, limit, skip, take } = pickPagination(req);
-    const { search } = req.query;
+    const properties = await prisma.property.findMany({
+      where: { isDeleted: false },
+      orderBy: { createdAt: "desc" },
+      include: {
+        propertyType: true,
 
-    const where = {
-      isDeleted: false,
-      ...(search && {
-        OR: [
-          { title: { contains: search, mode: 'insensitive' } },
-          { description: { contains: search, mode: 'insensitive' } }
-        ]
-      })
-    };
+        // M:N relations through join tables
+        amenities: { include: { amenity: true } },
+        facilities: { include: { facility: true } },
+        safeties: { include: { safety: true } },
 
-    const [properties, total] = await Promise.all([
-      prisma.property.findMany({
-        where,
-        skip,
-        take,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          propertyType: { where: { isDeleted: false } },
-
-          // property-level
-          amenities: {
-            where: { isDeleted: false, amenity: { isDeleted: false } },
-            include: { amenity: true }
-          },
-          facilities: {
-            where: { isDeleted: false, facility: { isDeleted: false } },
-            include: { facility: true }
-          },
-          safeties: {
-            where: { isDeleted: false, safety: { isDeleted: false } },
-            include: { safety: true }
-          },
-
-          roomTypes: { where: { isDeleted: false } },
-
-          // rooms with full details
-          rooms: {
-            where: { isDeleted: false },
-            include: {
-              roomType: true,
-              amenities: {
-                where: { isDeleted: false, amenity: { isDeleted: false } },
-                include: { amenity: true }
+        // RoomTypes + their RoomType master + nested Rooms
+        roomTypes: {
+          include: {
+            roomType: true,
+            rooms: {
+              where: { isDeleted: false },
+              include: {
+                amenities: { include: { amenity: true } },
               },
-              availability: { where: { isDeleted: false } } // keep or remove as needed
-            }
+            },
           },
+        },
 
-          media: { where: { isDeleted: false } }
-        }
-      }),
-      prisma.property.count({ where })
-    ]);
-
-    res.json({
-      success: true,
-      data: properties,
-      pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+        // Direct relations
+        specialRates: true,
+        media: true,
+        MealPlan: true,
+        reviews: true,
+      },
     });
+
+    res.json({ success: true, data: properties });
   } catch (err) {
-    console.error('getProperties:', err);
-    res.status(500).json({ success: false, message: 'Error fetching properties' });
+    console.error("getProperties:", err);
+    res.status(500).json({ success: false, message: "Error fetching properties" });
   }
-},
-
-
+},  
 
   getProperty: async (req, res) => {
     try {
@@ -941,322 +643,303 @@ getProperties: async (req, res) => {
       res.status(500).json({ success: false, message: 'Error fetching property' });
     }
   },
-
-  updateProperty: async (req, res) => {
-    console.log('updateProperty req.body:', req.body);
-    console.log('updateProperty req.params:', req.params);
-    console.log('updateProperty req.files:', req.files);
-    
+  getPropertyByOwener: async (req, res) => {
     try {
-      const { id } = req.params;
-      const guard = await ensureNotDeleted(prisma.property, id, 'Property');
-      if (guard.error) return res.status(404).json({ success: false, message: guard.error });
+      const { ownerHostId } = req.params;
 
-      // Parse FormData fields
-      const {
-        title,
-        description,
-        rulesAndPolicies,
-        status,
-        propertyTypeId,
-        ownerHostId,
-        location,
-        amenityIds,
-        facilityIds,
-        safetyIds,
-        roomTypeIds,
-        existingMedia,
-        coverImageIndex,
-        rooms
-      } = req.body;
-
-      // Parse arrays and JSON
-      const amenityList = normalizeToArray(amenityIds).filter(Boolean);
-      const facilityList = normalizeToArray(facilityIds).filter(Boolean);
-      const safetyList = normalizeToArray(safetyIds).filter(Boolean);
-      const roomTypeList = normalizeToArray(roomTypeIds).filter(Boolean);
-      const existingMediaList = normalizeToArray(existingMedia).filter(Boolean);
-      const roomsData = normalizeToArray(rooms);
-
-      // Validate required fields
-      if (!title?.trim()) {
-        return res.status(400).json({ success: false, message: 'Title is required' });
-      }
-
-      // Validate owner host exists
-      if (ownerHostId) {
-        const host = await prisma.user.findUnique({
-          where: { id: ownerHostId },
-          select: { id: true, isDeleted: true }
-        });
-        if (!host || host.isDeleted) {
-          return res.status(400).json({ 
-            success: false, 
-            message: 'Invalid ownerHostId' 
-          });
-        }
-      }
-
-      // Validate property type
-      if (propertyTypeId) {
-        const pt = await prisma.propertyType.findUnique({
-          where: { id: propertyTypeId },
-          select: { id: true, isDeleted: true }
-        });
-        if (!pt || pt.isDeleted) {
-          return res.status(400).json({ 
-            success: false, 
-            message: 'Invalid propertyTypeId' 
-          });
-        }
-      }
-
-      // Helper: assert IDs exist
-      const mustExist = async (model, ids, label) => {
-        if (!ids.length) return;
-        const rows = await model.findMany({
-          where: { id: { in: ids }, isDeleted: false },
-          select: { id: true }
-        });
-        const ok = new Set(rows.map(r => r.id));
-        const missing = [...new Set(ids)].filter(id => !ok.has(id));
-        if (missing.length) {
-          throw new Error(`Invalid ${label} id(s): ${missing.join(', ')}`);
-        }
-      };
-
-      await mustExist(prisma.amenity, amenityList, 'amenity');
-      await mustExist(prisma.facility, facilityList, 'facility');
-      await mustExist(prisma.safetyHygiene, safetyList, 'safety');
-      await mustExist(prisma.roomType, roomTypeList, 'roomType');
-
-      // Handle files
-      const filesByField = (req.files || []).reduce((acc, f) => {
-        (acc[f.fieldname] ||= []).push(f);
-        return acc;
-      }, {});
-
-      const newMediaFiles = filesByField['media'] || [];
-      
-      // Validate file types and sizes
-      const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
-      const allowedVideoTypes = ['video/mp4', 'video/webm', 'video/mov'];
-      const maxFileSize = 50 * 1024 * 1024; // 50MB
-      
-      for (const file of newMediaFiles) {
-        if (!allowedImageTypes.includes(file.mimetype) && !allowedVideoTypes.includes(file.mimetype)) {
-          return res.status(400).json({
-            success: false,
-            message: `Invalid file type: ${file.mimetype}. Only images and videos are allowed.`
-          });
-        }
-        
-        if (file.size > maxFileSize) {
-          return res.status(400).json({
-            success: false,
-            message: `File too large: ${file.originalname}. Maximum size is 50MB.`
-          });
-        }
-      }
-
-      // Process media files
-      const newPropertyMedia = newMediaFiles.map((f, idx) => {
-        const url = fileToUrl(req, f);
-        return {
-          url,
-          type: f.mimetype?.startsWith('image/') ? 'image' : 'video',
-          isFeatured: Number(coverImageIndex) === (existingMediaList.length + idx),
-          order: existingMediaList.length + idx
-        };
+      console.log('getPropertyByOwner ownerHostId:', ownerHostId);
+      const properties = await prisma.property.findFirst({
+        where: { ownerHostId: ownerHostId, isDeleted: false }
       });
 
-      // Process existing media
-      const existingPropertyMedia = existingMediaList.map((url, idx) => ({
-        url,
-        type: 'image', // assume existing are images
-        isFeatured: Number(coverImageIndex) === idx && newMediaFiles.length === 0,
-        order: idx
-      }));
-
-      const allPropertyMedia = [...existingPropertyMedia, ...newPropertyMedia];
-      const coverImage = allPropertyMedia.find(m => m.isFeatured)?.url || allPropertyMedia[0]?.url || null;
-
-      // Update in transaction
-      const result = await prisma.$transaction(async (tx) => {
-        // Update basic property data
-        const updatedProperty = await tx.property.update({
-          where: { id },
-          data: {
-            title: title?.trim(),
-            description: description || null,
-            rulesAndPolicies: rulesAndPolicies || null,
-            status: status || 'active',
-            location: parseJSON(location, null),
-            ...(ownerHostId && { ownerHostId }),
-            ...(propertyTypeId && { propertyTypeId }),
-            coverImage
-          }
-        });
-
-        // Clear existing relations
-        await tx.propertyAmenity.deleteMany({ where: { propertyId: id } });
-        await tx.propertyFacility.deleteMany({ where: { propertyId: id } });
-        await tx.propertySafety.deleteMany({ where: { propertyId: id } });
-        await tx.propertyMedia.deleteMany({ where: { propertyId: id } });
-
-        // Recreate amenities
-        if (amenityList.length) {
-          await tx.propertyAmenity.createMany({
-            data: amenityList.map(amenityId => ({ propertyId: id, amenityId }))
-          });
-        }
-
-        // Recreate facilities
-        if (facilityList.length) {
-          await tx.propertyFacility.createMany({
-            data: facilityList.map(facilityId => ({ propertyId: id, facilityId }))
-          });
-        }
-
-        // Recreate safeties
-        if (safetyList.length) {
-          await tx.propertySafety.createMany({
-            data: safetyList.map(safetyId => ({ propertyId: id, safetyId }))
-          });
-        }
-
-        // Recreate media
-        if (allPropertyMedia.length) {
-          await tx.propertyMedia.createMany({
-            data: allPropertyMedia.map(media => ({
-              propertyId: id,
-              ...media
-            }))
-          });
-        }
-
-        // Handle room updates
-        if (roomsData.length) {
-          // For simplicity, delete existing rooms and recreate
-          // In production, you might want more sophisticated room updating
-          await tx.roomAmenity.deleteMany({ 
-            where: { room: { propertyId: id } }
-          });
-          await tx.room.deleteMany({ where: { propertyId: id } });
-
-          // Process each room
-          for (const [index, roomDataRaw] of roomsData.entries()) {
-            const roomData = typeof roomDataRaw === 'string'
-              ? parseJSON(roomDataRaw, {})
-              : roomDataRaw || {};
-
-            if (!roomData.roomTypeId) {
-              throw new Error(`rooms[${index}].roomTypeId is required`);
-            }
-
-            // Handle room images
-            const newRoomImages = filesByField[`rooms[${index}][newImages]`] || [];
-            const existingRoomImages = normalizeToArray(roomData.existingImages || []);
-
-            // Validate room image files
-            for (const file of newRoomImages) {
-              if (!allowedImageTypes.includes(file.mimetype)) {
-                throw new Error(`Invalid room image type: ${file.mimetype} for room ${index + 1}`);
-              }
-              
-              if (file.size > maxFileSize) {
-                throw new Error(`Room image too large for room ${index + 1}: ${file.originalname}`);
-              }
-            }
-
-            const uploadedRoomImages = newRoomImages.map((f, idx) => ({
-              url: fileToUrl(req, f),
-              isFeatured: idx === 0 && existingRoomImages.length === 0,
-              caption: `Room Image ${idx + 1}`,
-              order: idx
-            }));
-
-            const existingRoomImagesData = existingRoomImages.map((url, idx) => ({
-              url,
-              isFeatured: idx === 0 && uploadedRoomImages.length === 0,
-              caption: `Room Image ${uploadedRoomImages.length + idx + 1}`,
-              order: uploadedRoomImages.length + idx
-            }));
-
-            const allRoomImages = [...uploadedRoomImages, ...existingRoomImagesData];
-
-            // Create room
-            const room = await tx.room.create({
-              data: {
-                propertyId: id,
-                roomTypeId: roomData.roomTypeId,
-                name: roomData.name || `Room ${index + 1}`,
-                code: roomData.code || null,
-                spaceSqft: roomData.spaceSqft ? parseInt(roomData.spaceSqft, 10) : null,
-                maxOccupancy: roomData.maxOccupancy ? parseInt(roomData.maxOccupancy, 10) : 2,
-                price: roomData.price ? Number(roomData.price) : 0,
-                images: allRoomImages,
-                status: roomData.status || 'active',
-              }
-            });
-
-            // Handle room amenities
-            const roomAmenityIds = normalizeToArray(roomData.amenityIds || []);
-            if (roomAmenityIds.length) {
-              await tx.roomAmenity.createMany({
-                data: Array.from(new Set(roomAmenityIds)).map(amenityId => ({
-                  roomId: room.id,
-                  amenityId
-                }))
-              });
-            }
-          }
-        }
-
-        // Return updated property with all relations
-        return await tx.property.findUnique({
-          where: { id },
-          include: {
-            propertyType: { where: { isDeleted: false } },
-            amenities: { 
-              where: { isDeleted: false }, 
-              include: { amenity: { where: { isDeleted: false } } } 
-            },
-            facilities: { 
-              where: { isDeleted: false }, 
-              include: { facility: { where: { isDeleted: false } } } 
-            },
-            safeties: { 
-              where: { isDeleted: false }, 
-              include: { safety: { where: { isDeleted: false } } } 
-            },
-            roomTypes: { where: { isDeleted: false } },
-            rooms: { 
-              where: { isDeleted: false },
-              include: {
-                roomType: { where: { isDeleted: false } },
-                amenities: { 
-                  where: { isDeleted: false }, 
-                  include: { amenity: { where: { isDeleted: false } } } 
-                }
-              }
-            },
-            media: { where: { isDeleted: false } },
-            ownerHost: { where: { isDeleted: false } }
-          }
-        });
-      });
-
-      res.json({ success: true, message: 'Property updated successfully', data: result });
+      res.json({ success: true, data: properties });
     } catch (err) {
-      console.error('updateProperty:', err);
-      res.status(500).json({ 
-        success: false, 
-        message: err.message || 'Error updating property',
-        error: process.env.NODE_ENV === 'development' ? err.stack : undefined
-      });
+      console.error('getPropertyByOwner:', err);
+      res.status(500).json({ success: false, message: 'Error fetching properties by owner' });
     }
   },
+
+ updateProperty: async (req, res) => {
+  console.log('updateProperty req.body:', req.body);
+  console.log('updateProperty req.params:', req.params);
+  console.log('updateProperty req.files:', req.files);
+
+  try {
+    const { id } = req.params;
+    const guard = await ensureNotDeleted(prisma.property, id, 'Property');
+    if (guard.error) return res.status(404).json({ success: false, message: guard.error });
+
+    // Parse FormData fields
+    const {
+      title,
+      description,
+      rulesAndPolicies,
+      status,
+      propertyTypeId,
+      ownerHostId,
+      location,
+      amenityIds,
+      facilityIds,
+      safetyIds,
+      roomTypeIds,
+      existingMedia,
+      coverImageIndex,
+      rooms
+    } = req.body;
+
+    // Parse arrays and JSON
+    const amenityList = normalizeToArray(amenityIds).filter(Boolean);
+    const facilityList = normalizeToArray(facilityIds).filter(Boolean);
+    const safetyList = normalizeToArray(safetyIds).filter(Boolean);
+    const roomTypeList = normalizeToArray(roomTypeIds).filter(Boolean);
+    const existingMediaList = normalizeToArray(existingMedia).filter(Boolean);
+    const roomsData = normalizeToArray(rooms);
+
+    // Validate required fields
+    if (!title?.trim()) {
+      return res.status(400).json({ success: false, message: 'Title is required' });
+    }
+
+    // Validate owner host exists
+    if (ownerHostId) {
+      const host = await prisma.host.findUnique({
+        where: { id: ownerHostId },
+        select: { id: true, isDeleted: true }
+      });
+      if (!host || host.isDeleted) {
+        return res.status(400).json({ success: false, message: 'Invalid ownerHostId' });
+      }
+    }
+
+    // Validate property type
+    if (propertyTypeId) {
+      const pt = await prisma.propertyType.findUnique({
+        where: { id: propertyTypeId },
+        select: { id: true, isDeleted: true }
+      });
+      if (!pt || pt.isDeleted) {
+        return res.status(400).json({ success: false, message: 'Invalid propertyTypeId' });
+      }
+    }
+
+    // Helper: assert IDs exist
+    const mustExist = async (model, ids, label) => {
+      if (!ids.length) return;
+      const rows = await model.findMany({
+        where: { id: { in: ids }, isDeleted: false },
+        select: { id: true }
+      });
+      const ok = new Set(rows.map(r => r.id));
+      const missing = [...new Set(ids)].filter(x => !ok.has(x));
+      if (missing.length) throw new Error(`Invalid ${label} id(s): ${missing.join(', ')}`);
+    };
+
+    await mustExist(prisma.amenity, amenityList, 'amenity');
+    await mustExist(prisma.facility, facilityList, 'facility');
+    await mustExist(prisma.safetyHygiene, safetyList, 'safety');
+    await mustExist(prisma.roomType, roomTypeList, 'roomType');
+
+    // Files
+    const filesByField = (req.files || []).reduce((acc, f) => {
+      (acc[f.fieldname] ||= []).push(f);
+      return acc;
+    }, {});
+    const newMediaFiles = filesByField['media'] || [];
+
+    // Validate files
+    const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+    const allowedVideoTypes = ['video/mp4', 'video/webm', 'video/mov'];
+    const maxFileSize = 50 * 1024 * 1024;
+    for (const file of newMediaFiles) {
+      const okType = allowedImageTypes.includes(file.mimetype) || allowedVideoTypes.includes(file.mimetype);
+      if (!okType) return res.status(400).json({ success: false, message: `Invalid file type: ${file.mimetype}. Only images and videos are allowed.` });
+      if (file.size > maxFileSize) return res.status(400).json({ success: false, message: `File too large: ${file.originalname}. Maximum size is 50MB.` });
+    }
+
+    // Property media: existing + new
+    const newPropertyMedia = newMediaFiles.map((f, idx) => {
+      const url = fileToUrl(req, f);
+      return {
+        url,
+        type: f.mimetype?.startsWith('image/') ? 'image' : 'video',
+        isFeatured: Number(coverImageIndex) === (existingMediaList.length + idx),
+        order: existingMediaList.length + idx
+      };
+    });
+
+    const existingPropertyMedia = existingMediaList.map((url, idx) => ({
+      url,
+      type: 'image',
+      isFeatured: Number(coverImageIndex) === idx && newMediaFiles.length === 0,
+      order: idx
+    }));
+
+    const allPropertyMedia = [...existingPropertyMedia, ...newPropertyMedia];
+    const coverImage = allPropertyMedia.find(m => m.isFeatured)?.url || allPropertyMedia[0]?.url || null;
+
+    // Transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Update basic property data
+      await tx.property.update({
+        where: { id },
+        data: {
+          title: title?.trim(),
+          description: description || null,
+          rulesAndPolicies: rulesAndPolicies || null,
+          status: status || 'active',
+          location: parseJSON(location, null),
+          ...(ownerHostId && { ownerHostId }),
+          ...(propertyTypeId && { propertyTypeId }),
+          coverImage
+        }
+      });
+
+      // Clear existing relations
+      await tx.propertyAmenity.deleteMany({ where: { propertyId: id } });
+      await tx.propertyFacility.deleteMany({ where: { propertyId: id } });
+      await tx.propertySafety.deleteMany({ where: { propertyId: id } });
+      await tx.propertyMedia.deleteMany({ where: { propertyId: id } });
+
+      // Recreate amenities
+      if (amenityList.length) {
+        await tx.propertyAmenity.createMany({
+          data: amenityList.map(amenityId => ({ propertyId: id, amenityId }))
+        });
+      }
+
+      // Recreate facilities
+      if (facilityList.length) {
+        await tx.propertyFacility.createMany({
+          data: facilityList.map(facilityId => ({ propertyId: id, facilityId }))
+        });
+      }
+
+      // Recreate safeties
+      if (safetyList.length) {
+        await tx.propertySafety.createMany({
+          data: safetyList.map(safetyId => ({ propertyId: id, safetyId }))
+        });
+      }
+
+      // Recreate media
+      if (allPropertyMedia.length) {
+        await tx.propertyMedia.createMany({
+          data: allPropertyMedia.map(media => ({ propertyId: id, ...media }))
+        });
+      }
+
+      // Rooms
+      if (roomsData.length) {
+        await tx.roomAmenity.deleteMany({ where: { room: { propertyId: id } } });
+        await tx.room.deleteMany({ where: { propertyId: id } });
+
+        for (const [index, roomDataRaw] of roomsData.entries()) {
+          const roomData = typeof roomDataRaw === 'string' ? parseJSON(roomDataRaw, {}) : (roomDataRaw || {});
+          if (!roomData.roomTypeId) throw new Error(`rooms[${index}].roomTypeId is required`);
+
+          // Images
+          const newRoomImages = filesByField[`rooms[${index}][newImages]`] || [];
+          const existingRoomImages = normalizeToArray(roomData.existingImages || []);
+
+          for (const file of newRoomImages) {
+            if (!allowedImageTypes.includes(file.mimetype)) throw new Error(`Invalid room image type: ${file.mimetype} for room ${index + 1}`);
+            if (file.size > maxFileSize) throw new Error(`Room image too large for room ${index + 1}: ${file.originalname}`);
+          }
+
+          const uploadedRoomImages = newRoomImages.map((f, idx) => ({
+            url: fileToUrl(req, f),
+            isFeatured: idx === 0 && existingRoomImages.length === 0,
+            caption: `Room Image ${idx + 1}`,
+            order: idx
+          }));
+
+          const existingRoomImagesData = existingRoomImages.map((url, idx) => ({
+            url,
+            isFeatured: idx === 0 && uploadedRoomImages.length === 0,
+            caption: `Room Image ${uploadedRoomImages.length + idx + 1}`,
+            order: uploadedRoomImages.length + idx
+          }));
+
+          const allRoomImages = [...uploadedRoomImages, ...existingRoomImagesData];
+
+          const room = await tx.room.create({
+            data: {
+              propertyId: id,
+              roomTypeId: roomData.roomTypeId,
+              name: roomData.name || `Room ${index + 1}`,
+              code: roomData.code || null,
+              spaceSqft: roomData.spaceSqft ? parseInt(roomData.spaceSqft, 10) : null,
+              maxOccupancy: roomData.maxOccupancy ? parseInt(roomData.maxOccupancy, 10) : 2,
+              price: roomData.price ? Number(roomData.price) : 0,
+              images: allRoomImages,
+              status: roomData.status || 'active',
+            }
+          });
+
+          const roomAmenityIds = normalizeToArray(roomData.amenityIds || []);
+          if (roomAmenityIds.length) {
+            await tx.roomAmenity.createMany({
+              data: Array.from(new Set(roomAmenityIds)).map(amenityId => ({ roomId: room.id, amenityId }))
+            });
+          }
+        }
+      }
+
+      // ✅ Return updated property with relations (correct include usage)
+      return await tx.property.findFirst({
+        where: {
+          id,
+          isDeleted: false,
+          // filter to-one relations here
+          ...(propertyTypeId ? { propertyType: { is: { isDeleted: false } } } : {}),
+          ...(ownerHostId ? { ownerHost: { is: { isDeleted: false } } } : {}),
+        },
+        include: {
+          propertyType: true,
+          ownerHost: true,
+
+          amenities: {
+            where: { isDeleted: false, amenity: { is: { isDeleted: false } } },
+            include: { amenity: true }
+          },
+          facilities: {
+            where: { isDeleted: false, facility: { is: { isDeleted: false } } },
+            include: { facility: true }
+          },
+          safeties: {
+            where: { isDeleted: false, safety: { is: { isDeleted: false } } },
+            include: { safety: true }
+          },
+
+          roomTypes: { where: { isDeleted: false } },
+
+          rooms: {
+            where: { isDeleted: false, roomType: { is: { isDeleted: false } } },
+            include: {
+              roomType: true, // to-one => no where here
+              amenities: {
+                where: { isDeleted: false, amenity: { is: { isDeleted: false } } },
+                include: { amenity: true }
+              }
+            }
+          },
+
+          media: { where: { isDeleted: false } }
+        }
+      });
+    });
+
+    res.json({ success: true, message: 'Property updated successfully', data: result });
+  } catch (err) {
+    console.error('updateProperty:', err);
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Error updating property',
+      error: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
+  }
+},
+
 
   deleteProperty: async (req, res) => {
     try {
@@ -1272,54 +955,139 @@ getProperties: async (req, res) => {
   },
 
   // ========== ROOMS ==========
-  addRooms: async (req, res) => {
-    try {
-      const { propertyId } = req.params;
-      const { roomTypeId, name, code, spaceSqft, maxOccupancy, price, status } = req.body;
-      console.log('req.body:', req.body);
-      
+ addRooms: async (req, res) => {
+  const { propertyId } = req.params;
 
-      if (!propertyId || !roomTypeId || !name) {
-        return res.status(400).json({ success: false, message: 'propertyId, roomTypeId, and name are required' });
-      }
+  if (!propertyId) {
+    return res.status(400).json({ success: false, message: 'propertyId is required' });
+  }
 
-      const property = await prisma.property.findFirst({ where: { id: propertyId, isDeleted: false } });
-      if (!property) return res.status(404).json({ success: false, message: 'Property not found' });
+  const { propertyRoomTypeId, name, spaceSqft, maxOccupancy, code, status, amenities } = req.body;
+  const amenityList = JSON.parse(amenities || "[]").filter(Boolean);
 
-      let imagesData = null;
-      if (req.files && req.files.length > 0) {
-        imagesData = req.files.map((file, index) => ({
-          url: `/uploads/rooms/${file.filename}`,
-          isFeatured: index === 0,
-          caption: `Image ${index + 1}`,
-          order: index
-        }));
-      }
+  if (!propertyRoomTypeId) {
+    return res.status(400).json({ success: false, message: 'propertyRoomTypeId is required' });
+  }
+  if (!name?.trim()) {
+    return res.status(400).json({ success: false, message: 'Room name is required' });
+  }
+  if (!maxOccupancy || isNaN(parseInt(maxOccupancy, 10)) || parseInt(maxOccupancy, 10) <= 0) {
+    return res.status(400).json({ success: false, message: 'maxOccupancy must be a positive integer' });
+  }
 
-      const room = await prisma.room.create({
-        data: {
-          propertyId,
-          roomTypeId,
-          name,
-          code: code || null,
-          spaceSqft: spaceSqft ? parseInt(spaceSqft) : null,
-          maxOccupancy: Number(maxOccupancy) || 1,
-          price: price ? Number(price).toFixed(2) : '0.00',
-          images: imagesData,
-          status: status || 'active'
-        },
-        include: {
-          roomType: true,
-          property: { select: { id: true, title: true } }
-        }
-      });
-
-      res.status(201).json({ success: true, message: 'Room added', data: room });
-    } catch (err) {
-      console.error('addRooms:', err);
-      res.status(500).json({ success: false, message: err?.message || 'Error adding room' });
+  try {
+    // ✅ Check property exists
+    const property = await prisma.property.findFirst({
+      where: { id: propertyId, isDeleted: false },
+    });
+    if (!property) {
+      return res.status(404).json({ success: false, message: 'Property not found' });
     }
-  },
+
+    // ✅ Check room type exists
+    const propertyRoomType = await prisma.propertyRoomType.findFirst({
+      where: { id: propertyRoomTypeId, propertyId, isDeleted: false },
+    });
+    if (!propertyRoomType) {
+      return res.status(404).json({ success: false, message: 'Property room type not found' });
+    }
+
+    // ✅ Validate amenities
+    if (amenityList.length) {
+      const validAmenities = await prisma.amenity.findMany({
+        where: { id: { in: amenityList }, isDeleted: false },
+        select: { id: true },
+      });
+      const validAmenityIds = new Set(validAmenities.map((a) => a.id));
+      const invalidAmenities = amenityList.filter((id) => !validAmenityIds.has(id));
+      if (invalidAmenities.length) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid amenity IDs: ${invalidAmenities.join(', ')}`,
+        });
+      }
+    }
+
+    // ✅ Process images
+    const filesByField = (req.files || []).reduce((acc, f) => {
+      (acc[f.fieldname] ||= []).push(f);
+      return acc;
+    }, {});
+    const roomImages = filesByField['images'] || [];
+    const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+    const maxFileSize = 10 * 1024 * 1024;
+
+    for (const file of roomImages) {
+      if (!allowedImageTypes.includes(file.mimetype)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid image type: ${file.mimetype}. Only JPEG, PNG, WEBP are allowed.`,
+        });
+      }
+      if (file.size > maxFileSize) {
+        return res.status(400).json({
+          success: false,
+          message: `Image too large: ${file.originalname}. Max size is 10MB.`,
+        });
+      }
+    }
+
+    const roomImagesData = roomImages.map((f, idx) => ({
+      url: fileToUrl(req, f),
+      caption: `Room Image ${idx + 1}`,
+      isFeatured: idx === 0,
+      order: idx,
+    }));
+
+    // ✅ Create room
+    const newRoom = await prisma.room.create({
+      data: {
+        propertyRoomTypeId,
+        name: name.trim(),
+        code: code?.trim() || null,
+        spaceSqft: spaceSqft ? parseInt(spaceSqft, 10) : null,
+        maxOccupancy: parseInt(maxOccupancy, 10),
+        images: roomImagesData,
+        status: status || 'active',
+        amenities: {
+          create: amenityList.map((amenityId) => ({
+            amenity: { connect: { id: amenityId } },
+          })),
+        },
+      },
+      include: {
+        amenities: { where: { isDeleted: false }, include: { amenity: true } },
+      },
+    });
+
+    // ✅ Seed availability for 90 days
+    const today = new Date();
+    const daysToSeed = 90; // configurable
+    const availabilities = Array.from({ length: daysToSeed }).map((_, i) => ({
+      roomId: newRoom.id,
+      date: new Date(today.getFullYear(), today.getMonth(), today.getDate() + i),
+      minNights: 1,
+    }));
+
+    await prisma.availability.createMany({
+      data: availabilities,
+      skipDuplicates: true, // ignore if already exists
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Room added with availability seeded',
+      data: newRoom,
+    });
+  } catch (err) {
+    console.error('addRooms:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Error adding room',
+      error: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+    });
+  }
+},
 
   getRooms: async (req, res) => {
     try {
@@ -1373,7 +1141,41 @@ getProperties: async (req, res) => {
       console.error('deleteRoom:', err);
       res.status(500).json({ success: false, message: 'Error deleting room' });
     }
+  },
+   getPropertyRoomtype: async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    if (!propertyId) {
+      return res.status(400).json({ success: false, message: 'propertyId is required' });
+    }
+
+    const rows = await prisma.propertyRoomType.findMany({
+      where: {
+        propertyId,
+        isDeleted: false,
+      },
+      include: {
+        roomType: { select: { id: true, name: true } }, 
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // Map to the shape your UI expects
+    const data = rows.map(rt => ({
+      propertyRoomTypeId: rt.id,                  // <-- this is what you’ll send back to apply special rates
+      roomTypeId: rt.roomTypeId,
+      propertyId: rt.propertyId,
+      name: rt.roomType?.name ?? 'Unnamed',       // used in your UI to match by name
+      basePrice: Number(rt.basePrice),            // Prisma Decimal -> number
+      isActive: rt.isActive,
+    }));
+
+    return res.json({ success: true, data });
+  } catch (err) {
+    console.error('getPropertyRoomTypes error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
+}
 };
 
 module.exports = PropertyController;

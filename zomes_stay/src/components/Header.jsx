@@ -4,7 +4,6 @@ import img from "../assets/banners/4591f90b15ec2f4d76bc1e953c01759bd99c23c9 copy
 import img1 from "../assets/banners/4591f90b15ec2f4d76bc1e953c01759bd99c23c9 copy 2.png";
 import img2 from "../assets/banners/4591f90b15ec2f4d76bc1e953c01759bd99c23c9 copy 2.png";
 import { useNavigate } from "react-router-dom";
-
 const Header = () => {
   const slides = [img, img1, img2];            // <- put your 4 images here
   const [menuOpen, setMenuOpen] = useState(false);
@@ -96,6 +95,49 @@ const Header = () => {
             <p className="mt-3 text-white/90 drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)] text-sm sm:text-lg md:text-xl lg:text-2xl">
               Best Resort For Your Vacation
             </p>
+
+            {/* Desktop/Tablet Search Bar */}
+
+            <div className="hidden sm:flex bg-white w-full max-w-3xl mx-auto flex-col md:flex-row   gap-2 md:gap-4 p-2 md:p-4 rounded-lg  shadow-lg mt-1">
+              {/* Location Input */}
+              
+              {/* Check-in Date */}
+              <input
+                type="date"
+                placeholder="Check-in"
+                className="px-3 py-2 rounded-md border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-700 text-sm md:text-base"
+              />
+              {/* Check-out Date */}
+              <input
+                type="date"
+                placeholder="Check-out"
+                className="px-3 py-2 rounded-md border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-700 text-sm md:text-base"
+              />
+              {/* Guests */}
+              <select
+                className="px-3 py-2 rounded-md border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-700 text-sm md:text-base min-w-[120px]"
+                defaultValue="2 Guests, 1+ Rooms"
+              >
+                <option>1 Guest, 1 Room</option>
+                <option>2 Guests, 1+ Rooms</option>
+                <option>4 Guests, 2+ Rooms</option>
+                <option>6 Guests, 3+ Rooms</option>
+              </select>
+              {/* Search Button */}
+              <button className="bg-[#004AAD] text-white px-6 py-2 rounded-md font-semibold hover:bg-[#003080] transition text-sm md:text-base">
+                SEARCH
+              </button>
+            </div>
+{/* Mobile Search Input */}
+            <div className="flex sm:hidden bg-white w-full max-w-xs mx-auto p-2 rounded-full shadow-md mt-2">
+              <input
+                type="text"
+                placeholder="Search for a property in  Go"
+                className="flex-1 px-4 py-2 rounded-full border-none focus:outline-none text-gray-700 text-base bg-transparent"
+                style={{ boxShadow: "none" }}
+              />
+              <button className="ml-2 bg-[#004AAD] text-white px-4 py-2 rounded-full font-semibold text-base">Go</button>
+            </div>
           </div>
         </div>
       

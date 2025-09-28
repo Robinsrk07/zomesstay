@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 import Logo from "../../assets/loginPage/logo.png";
 import { useNavigate } from "react-router-dom";
-import services from "../../services";
 import { toast } from "react-toastify";
+import { useDispatch } from "react-redux";
+import { setLogin } from "../../store/authSlice";
+import { authService } from "../../services";
 
 const TechIllustration = () => (
   <svg
@@ -28,6 +30,7 @@ const AdminLogin = () => {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const navigate = useNavigate();
+  const dispatch = useDispatch();
 
   const validateForm = () => {
     const newErrors = {};
@@ -51,13 +54,22 @@ const AdminLogin = () => {
 
     setLoading(true);
     try {
-      const response = await services.authService.login({
-        ...formData,
-        role: "admin", 
-      });
+      const response = await authService.login({
+        ...formData    
+        });
    
-      console.log(response)
-      sessionStorage.setItem("authToken", response.data.data.token);
+      const data = response?.data?.data;
+      console.log("admin data",data)
+
+      sessionStorage.setItem("authToken", data.token);
+      dispatch(setLogin({
+        email: data.admin.email,
+        role: data.admin.role,
+        first_name: data.admin.firstName,
+        last_name: data.admin.lastName,
+        profileImage: data.admin.profileImage,
+        id:data.admin.id
+       }));
 
       toast.success("Login successful!");
        navigate("/admin/base/dashboard", { replace: true });

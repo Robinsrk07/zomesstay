@@ -12,6 +12,9 @@ import {
   HelpCircle,
 } from "lucide-react"; 
 
+
+
+
 export const MENU = [
   {
     label: "Dashboard",
@@ -65,6 +68,7 @@ export const MENU = [
       { label: "Promotions", path: "promotion" },
      
     ],
+    
   },
   {
     label: "Communication",
@@ -90,3 +94,4 @@ export const MENU = [
     path: "help",
   }
 ];
+

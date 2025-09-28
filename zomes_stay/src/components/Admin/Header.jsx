@@ -2,20 +2,39 @@ import { MagnifyingGlassIcon, BellIcon } from "@heroicons/react/24/outline";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import authService from "../../services/auth/authService";
+import { useSelector, useDispatch } from "react-redux";            // ⬅️ add dispatch
+import hostAuthService from "../../services/auth/host_authService";
+import { persistor } from "../../store/store";            // ⬅️ add persistor
 
 const Header = ({ onOpenSidebar }) => {
   const navigate = useNavigate();
+  const dispatch = useDispatch();                                   // ⬅️ add
+  const auth = useSelector((state) => state.auth);
+  const role = auth?.role;
+
+console.log("role to test ",auth)
+console.log("role to test ",role)
 
   const handleLogout = async () => {
     try {
-      await authService.logout(); // hit your API logout endpoint (optional)
+      if (role === "admin") await authService.logout();
+      else if (role === "host") await hostAuthService.logout();
     } catch (error) {
       console.error("Logout API failed:", error);
     } finally {
-      // Clear session and redirect
+      // remove any client token
       sessionStorage.removeItem("authToken");
+
+      // reset redux in-memory (no new imports; use action type string)
+      dispatch({ type: "auth/logout" });
+
+      // wipe persisted redux so it won't rehydrate on refresh
+      await persistor.flush();
+      await persistor.purge();
+
       toast.success("Logged out successfully!");
-      navigate("/admin", { replace: true });
+      if (role === "host") navigate("/host", { replace: true });
+      else if (role === "admin") navigate("/admin", { replace: true });
     }
   };
 
@@ -55,7 +74,6 @@ const Header = ({ onOpenSidebar }) => {
 
       {/* Right cluster */}
       <div className="ml-auto flex items-center gap-6">
-        {/* Notification bell with red dot */}
         <div className="relative">
           <BellIcon className="h-6 w-6 text-indigo-400 cursor-pointer" />
           <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white"></span>
@@ -70,7 +88,9 @@ const Header = ({ onOpenSidebar }) => {
           />
           <div className="leading-tight hidden sm:block">
             <div className="text-sm font-semibold text-gray-800">John Thomson</div>
-            <div className="text-xs text-indigo-400">Admin</div>
+            <div className="text-xs text-indigo-400">
+              {role === "host" ? "Property owner" : "Admin"}
+            </div>
           </div>
         </div>
 

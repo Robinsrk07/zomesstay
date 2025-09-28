@@ -1,15 +1,15 @@
 import { useEffect } from 'react';
-import services from '../services';
+import { propertyService } from '../services';
 
 const Test = () => {
   useEffect(() => {
     const testApi = async () => {
       try {
         // Example: Login
-        // const loginResponse = await services.authService.login('test@example.com', 'password');
+        // const loginResponse = await authService.login('test@example.com', 'password');
         
         // Example: Get properties
-        const properties = await services.propertyService.getProperties();
+        const properties = await propertyService.getProperties();
         console.log('Properties:', properties);
       } catch (error) {
         console.error('Error:', error);

@@ -1,9 +1,6 @@
-import authService from "./auth/authService";
-import propertyService from "./property/propertyService";
-import mediaService from "./media/mediaService";
+// Main services barrel - imports from subfolder index files
+export * from './api';
+export * from './auth';
+export * from './media';
+export * from './property';
 
-export default {
-    authService,
-    propertyService,
-    mediaService
-}

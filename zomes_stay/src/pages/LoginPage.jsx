@@ -47,11 +47,15 @@ const LoginPage = () => {
               Continue
             </button>
 
-            <p className="mt-6 text-center text-sm sm:text-base text-gray-500">
+            <p className="mt-6 flex gap-2 items-center justify-center text-sm  sm:text-base text-gray-500">
               Don’t have an account?{" "}
               <Link to="/signup" className="text-[#004ADD] font-medium">
-                Create now
+                Create now |
               </Link>
+              <Link to="/admin" className="text-[#004ADD] font-medium">
+                admin Login
+              </Link>
+              
             </p>
           </div>
         </div>

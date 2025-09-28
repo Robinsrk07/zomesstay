@@ -12,6 +12,16 @@ export const AUTH = {
   ME: '/auth/me',
 };
 
+
+export const HOST_AUTH = {
+    LOGIN: '/host-login',
+    REGISTER: '/host/register',
+    LOGOUT: '/host/logout',
+    REFRESH: '/host/refresh',
+    ME: '/host/me',
+}
+
+
 export const PROPERTY = {
   PROPERTY: '/properties',
   AMENITIES: '/amenities',
@@ -20,8 +30,20 @@ export const PROPERTY = {
   ROOM_TYPES: '/room-types',
   ROOMS: '/properties',
   PROPERTY_TYPE: '/property-types',
+  PROPERTY_ROOM_TYPES:'/propertyroomtype',
+  
 
 };
+
+export const HOST_PROPERTY = {
+  PROPERTY:'/host-properties',
+  PROPERTY_BY_OWNERID:'/propertiesbyhost'
+}
+
+export const HOST_INVENTORY = {
+  AVAILABILITY: '/properties',
+  SPECIAL_RATES: '/special-rates'
+}
 
   
 export const MEDIA ={
@@ -32,5 +54,9 @@ export const USER = {
   PROFILE: '/users/profile',
   // Add more user-related endpoints as needed
 };
+
+export const MEAL_PLAN = {
+  MEAL_PLAN: '/meal-plan'
+}
 
 // Add more endpoint categories as needed

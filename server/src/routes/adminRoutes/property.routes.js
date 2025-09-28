@@ -56,12 +56,15 @@ PropertyRoute.delete('/properties/:id', PropertyController.deleteProperty);
 // Add ONE room (your controller adds a single room per call)
 PropertyRoute.post(
   '/properties/:propertyId/rooms',
-  uploadImage.array('images', 10),  // room images (optional)
+  uploadMedia.any(),  
   PropertyController.addRooms       // <- note: method name is addRooms (capital R)
 );
 
 PropertyRoute.get('/properties/:propertyId/rooms', PropertyController.getRooms);
+PropertyRoute.get('/propertiesbyhost/:ownerHostId', PropertyController.getPropertyByOwener);
 PropertyRoute.put('/rooms/:id', PropertyController.updateRoom);
 PropertyRoute.delete('/rooms/:id', PropertyController.deleteRoom);
+PropertyRoute.get('/propertyroomtype/:propertyId', PropertyController.getPropertyRoomtype)
+
 
 module.exports = PropertyRoute;

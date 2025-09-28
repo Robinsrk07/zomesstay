@@ -1,8 +1,19 @@
 import Logo from "../../assets/loginPage/logo.png";
 import SidebarItem from "./SidebarItem";
-import { MENU } from "../../data/menuData";
+import { MENU} from "../../data/menuData";
+import { MENU_HOST} from "../../data/menuData-host";
+import { useSelector } from "react-redux";
 
-const SideCard = ({ className = "", onNavigate = () => {} }) => (
+const SideCard = ({ className = "", onNavigate = () => {} }) => {
+
+  const auth = useSelector((state) => state.auth);
+  const role = auth?.role;
+
+  console.log(role);
+
+  const menu = role === "host" ? MENU_HOST : MENU;
+
+  return (
   <aside className={`h-screen bg-white shadow-sm flex flex-col ${className}`}>
     <div className="flex h-full w-full flex-col">
       <div className="px-5 py-5 border-b border-gray-100">
@@ -10,7 +21,7 @@ const SideCard = ({ className = "", onNavigate = () => {} }) => (
       </div>
       <nav className="flex-1 overflow-y-auto p-3">
         <ul className="space-y-1">
-          {MENU.map((item) => {
+          {menu.map((item) => {
             const hasChildren = Array.isArray(item.children) && item.children.length > 0;
             return hasChildren ? (
               <li key={item.label}>
@@ -29,6 +40,7 @@ const SideCard = ({ className = "", onNavigate = () => {} }) => (
       </div>
     </div>
   </aside>
-);
+)
+}
 
 export default SideCard;

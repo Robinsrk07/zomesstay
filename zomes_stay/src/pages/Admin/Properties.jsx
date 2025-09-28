@@ -1,7 +1,7 @@
 import { Eye, Edit, Trash2, Plus, X, ArrowUp, ArrowDown } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import {toast} from "react-toastify";
-import services from "../../services";
+import  {propertyService,mediaService} from "../../services";
 
 /* ---------- utils ---------- */
 const nfINR = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 });
@@ -193,7 +193,7 @@ const Properties = () => {
       ...room,
       images: (room.images || []).map(img => ({
         ...img,
-        url: img.url || services.mediaService.getMedia(img.url)
+        url: img.url || mediaService.getMedia(img.url)
       })),
       amenities: room.amenities || []
     }));
@@ -402,7 +402,7 @@ const Properties = () => {
           fd.append(`rooms[${roomIndex}][newImages]`, img.file);
         });
       });
-      await services.propertyService.updateProperty(editFormData.id, fd);
+      await propertyService.updateProperty(editFormData.id, fd);
       toast.success("Property updated");
       setEditModal(false);
       setEditFormData(null);
@@ -492,7 +492,7 @@ const Properties = () => {
     setLoading(true);
     setErrMsg("");
     try {
-      const res = await services.propertyService.getProperties();
+      const res = await propertyService.getProperties();
       setPropertyList(res?.data?.data || []);
     } catch (err) {
       console.error("Failed to fetch properties", err);
@@ -505,11 +505,11 @@ const Properties = () => {
   const fetchDropdownData = async () => {
     try {
       const [a, f, s, rt, pt] = await Promise.all([
-        services.propertyService.getAmenities(),
-        services.propertyService.getFacilities(),
-        services.propertyService.getSafeties(),
-        services.propertyService.getRoomTypes(),
-        services.propertyService.getPropertyTypes(),
+        propertyService.getAmenities(),
+        propertyService.getFacilities(),
+        propertyService.getSafeties(),
+        propertyService.getRoomTypes(),
+        propertyService.getPropertyTypes(),
       ]);
       setAmenities(a?.data?.data || []);
       setFacilities(f?.data?.data || []);
@@ -551,7 +551,7 @@ const Properties = () => {
     const prev = propertyList;
     setPropertyList((list) => list.filter((p) => p.id !== property.id));
     try {
-      await services.propertyService.deleteProperty(encodeURIComponent(property.id));
+      await propertyService.deleteProperty(encodeURIComponent(property.id));
     } catch (err) {
       console.error("Delete failed", err);
       setPropertyList(prev);
@@ -888,7 +888,7 @@ const Properties = () => {
       });
 
       // Actually submit
-      await services.propertyService.createProperty(fd);
+      await propertyService.createProperty(fd);
 
       toast.success("Property created");
       resetForm();
@@ -904,7 +904,7 @@ const Properties = () => {
 
   // Add-item handlers (kept at component scope, not inside handleSubmit)
   const handleAddAmenity = async (name) => {
-    const res = await services.propertyService.createAmenity({ name });
+    const res = await propertyService.createAmenity({ name });
     const newAmenity = res?.data?.data;
     if (newAmenity) {
       setAmenities((p) => [...p, newAmenity]);
@@ -914,7 +914,7 @@ const Properties = () => {
   };
 
   const handleAddFacility = async (name) => {
-    const res = await services.propertyService.createFacility({ name });
+    const res = await propertyService.createFacility({ name });
     const newItem = res?.data?.data;
     if (newItem) {
       setFacilities(prev => [...prev, newItem]);
@@ -924,7 +924,7 @@ const Properties = () => {
   };
 
   const handleAddSafety = async (name) => {
-    const res = await services.propertyService.createSafety({ name });
+    const res = await propertyService.createSafety({ name });
     const newItem = res?.data?.data;
     if (newItem) {
       setSafeties(prev => [...prev, newItem]);
@@ -934,7 +934,7 @@ const Properties = () => {
   };
 
   const handleAddRoomType = async (name) => {
-    const res = await services.propertyService.createRoomType({ name });
+    const res = await propertyService.createRoomType({ name });
     const newItem = res?.data?.data;
     if (newItem) {
       setRoomTypes((p) => [...p, newItem]);
@@ -943,7 +943,7 @@ const Properties = () => {
   };
 
   const handleAddPropertyType = async (name) => {
-    const res = await services.propertyService.createPropertyType({ name });
+    const res = await propertyService.createPropertyType({ name });
     const newItem = res?.data?.data;
     if (newItem) {
       setPropertyTypes((p) => [...p, newItem]);
@@ -1088,7 +1088,7 @@ const Properties = () => {
                   <h3 className="font-semibold text-gray-700 mb-2">Cover</h3>
                   <div className="w-full rounded overflow-hidden border">
                     <img
-                      src={services.mediaService.getMedia(selectedProperty.coverImage)}
+                      src={mediaService.getMedia(selectedProperty.coverImage)}
                       alt="Cover"
                       className="w-full max-h-72 object-cover bg-gray-100"
                     />
@@ -1218,13 +1218,13 @@ const Properties = () => {
                         <div key={m.id} className="border rounded overflow-hidden">
                           {isImage ? (
                             <img
-                              src={services.mediaService.getMedia(m.url)}
+                              src={mediaService.getMedia(m.url)}
                               alt={m.caption || "Media"}
                               className="w-full h-32 object-cover bg-gray-100"
                             />
                           ) : (
                             <video
-                              src={services.mediaService.getMedia(m.url)}
+                              src={mediaService.getMedia(m.url)}
                               className="w-full h-32 bg-black"
                               controls
                             />
@@ -2572,7 +2572,7 @@ const Properties = () => {
                             {(room.images || []).map((img, imgIndex) => (
                               <div key={imgIndex} className="relative group">
                                 <img
-                                  src={img.file ? img.url : (img.url || services.mediaService.getMedia(img.url))}
+                                  src={img.file ? img.url : (img.url || mediaService.getMedia(img.url))}
                                   alt={`Room ${index + 1} - ${imgIndex + 1}`}
                                   className="h-20 w-20 object-cover rounded border"
                                 />

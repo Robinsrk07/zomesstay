@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Body from "./components/Body";
 import HomePage from "./components/HomePage";
 import LoginPage from "./pages/LoginPage";
-import SignUp from "./pages/signUp";
+//import SignUp from "./pages/signUp";
 import OtpVerification from "./pages/OtpVerification";
 import OtpVerified from "./pages/OtpVerified";
 import Detials from "./pages/DetialsPage";
@@ -18,7 +18,7 @@ import SignInSuccess from './pages/SignInSucces';
 import AboutUs from "./pages/AboutUs";
 import AdminLogin from "./pages/Admin/AdminLogin";
 import BaseLayout from "./pages/Admin/BaseLayout";
-import Test from "./pages/Admin/Test";
+
 import Dashboard from "./pages/Admin/DashBoard";
 import Properties from "./pages/Admin/Properties";
 import AddProperty from "./pages/Admin/AddProperty";
@@ -29,6 +29,16 @@ import PaymentsTransactions from "./pages/Admin/Payment";
 import PromotionsDiscounts from "./pages/Admin/PromotionsDiscounts";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import HostLogin from "./pages/Host/HostLogin";
+import HostDashboard from "./pages/Host/HostDashBoard";
+import HostAllBookings from "./pages/Host/HostAllBookings";
+import HostRegisteredUsers from "./pages/Host/HostRegisteredUsers";
+import HostProperties from "./pages/Host/HostProperties";
+import HostPaymentsTransactions from "./pages/Host/HostPayment";
+import HostPromotionsDiscounts from "./pages/Host/HostPromotionsDiscounts";
+import Inventory from "./pages/Host/inventory";
+import MealPlan from "./pages/Host/MealPlan";
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -38,6 +48,7 @@ export default function App() {
         {/* public */}
         <Route path="/" element={<LoginPage />} />
         <Route path="/admin" element={<AdminLogin />} />
+        <Route path="/host"  element={<HostLogin />} />
         <Route path="/otp" element={<OtpVerification />} />
         <Route path="/otp-verified" element={<OtpVerified />} />
         
@@ -61,32 +72,37 @@ export default function App() {
 
         {/* ADMIN LAYOUT + CHILD PAGES -> Outlet renders here */}
         <Route path="/admin/base" element={<BaseLayout />}>
-          <Route index element={<Test />} />                 {/* /admin/base */}
           <Route path="dashboard" element={<Dashboard />} />      {/* Dashboard */}
           <Route path="properties" element={<Properties />} />     {/* All Properties */}
           <Route path="properties/add" element={<AddProperty />} /> {/* Add Property */}
-          <Route path="properties/types" element={<Test />} /> 
 
           <Route path="all_bookings" element={<AllBookings />} /> 
           <Route path="registred_users" element={<RegisteredUsers />} /> 
           <Route path="transactions" element={<PaymentsTransactions />} /> 
           <Route path="promotion" element={<PromotionsDiscounts />} /> 
-          <Route path="tenants/leases" element={<Test />} /> 
+        
 
-          <Route path="finance/rent" element={<Test />} /> 
-          <Route path="finance/expenses" element={<Test />} /> 
-          <Route path="finance/reports" element={<Test />} /> 
+          
+        </Route>
 
-          <Route path="maintenance/requests" element={<Test />} /> 
-          <Route path="maintenance/schedule" element={<Test />} /> 
-          <Route path="maintenance/vendors" element={<Test />} /> 
 
-          <Route path="communication/messages" element={<Test />} /> 
-          <Route path="communication/announcements" element={<Test />} /> 
+        <Route path="/host/base" element={<BaseLayout />}>
+          <Route path="dashboard" element={<HostDashboard />} />      {/* Dashboard */}
+          <Route path="host-properties" element={<HostProperties />} />     {/* All Properties */}
+          <Route path="properties/add" element={<AddProperty />} /> {/* Add Property */}
+          <Route path="inventory_management" element={<Inventory/>} />
+          <Route path="meal_plans" element={<MealPlan/>} />
 
-          <Route path="reports" element={<Test />} /> 
-          <Route path="settings" element={<Test />} /> 
-          <Route path="help" element={<Test />} /> 
+          <Route path="host-all_bookings" element={<HostAllBookings />} /> 
+          <Route path="host-registred_users" element={<HostRegisteredUsers />} /> 
+          <Route path="host-transactions" element={<HostPaymentsTransactions />} /> 
+          <Route path="host-promotion" element={<HostPromotionsDiscounts />} /> 
+
+         
+
+
+
+        
         </Route>
       </Routes>
     </BrowserRouter>

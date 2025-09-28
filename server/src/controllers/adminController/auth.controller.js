@@ -1,14 +1,9 @@
-// src/controllers/adminController/auth.controller.js
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcrypt');
 const path = require('path');
 const jwt = require('jsonwebtoken');
 
 const prisma = new PrismaClient();
-
-
-
-
 
 const toEnum = (val, allowed, def) => {
   if (!val) return def;
@@ -26,11 +21,7 @@ const toDateOrNull = (val) => {
 const AuthController = {
   signup: async (req, res) => {
     try {
-
       const b = req.body || {};
-
-
-      console.log(b)
       const {
         email,
         password,
@@ -41,7 +32,8 @@ const AuthController = {
         dob,
         gender,
         emailVerified, 
-        phoneVerified   
+        phoneVerified ,
+    
       } = b;
 
       if (!email || !password || !firstName || !lastName) {
@@ -80,12 +72,12 @@ const AuthController = {
           password: hashed,
           firstName,
           lastName,
-          status: statusEnum,             // AccountStatus enum
+          status: statusEnum,             
           phone: phone || null,
-          profileImage,                   // String?
-          emailVerified: emailVerifiedAt, // DateTime?
-          phoneVerified: phoneVerifiedAt, // DateTime?
-          dob: dobDate,                   // DateTime?
+          profileImage,                   
+          emailVerified: emailVerifiedAt, 
+          phoneVerified: phoneVerifiedAt,
+          dob: dobDate,                   
           gender: gender || null
         },
         select: {
@@ -109,6 +101,7 @@ const AuthController = {
         success: true,
         message: 'Admin created successfully',
         data: admin 
+
       });
     } catch (err) {
      
@@ -169,11 +162,11 @@ const refreshToken = jwt.sign(
 
 
 res.cookie("refresh_token", refreshToken, {
-  httpOnly: true,            // not readable by JS (helps against XSS)
-  secure: true,            // true on HTTPS in production
-  sameSite: "lax",           // use 'none' if cross-site; requires secure:true
-  path: "/auth/refresh",     // cookie only sent to refresh endpoint
-  maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+  httpOnly: true,            
+  secure: true,            
+  sameSite: "lax",           
+  path: "/auth/refresh",    
+  maxAge: 30 * 24 * 60 * 60 * 1000, 
 });
 
 
@@ -183,7 +176,6 @@ return res.status(200).json({
   data: {
     token: accessToken,
     admin: {
-
       email: admin.email,
       firstName: admin.firstName,
       lastName: admin.lastName,
@@ -202,7 +194,7 @@ return res.status(200).json({
 
 logout: async (req, res) => {
   try {
-    // Clear the refresh token cookie
+    
     res.clearCookie("refresh_token");
 
     return res.status(200).json({

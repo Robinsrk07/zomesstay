@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { useSelector } from "react-redux";
 
 const Chevron = ({ open }) => (
   <svg
@@ -15,6 +16,8 @@ const SidebarItem = ({ item, depth = 0 }) => {
   const { pathname } = useLocation();
   const hasChildren = Array.isArray(item.children) && item.children.length > 0;
   const [open, setOpen] = useState(false);
+    const auth = useSelector((state) => state.auth);
+    const role = auth?.role;
 
   const padLeft = { paddingLeft: 12 + depth * 12 };
 
@@ -22,7 +25,7 @@ const SidebarItem = ({ item, depth = 0 }) => {
     const active = item.path && pathname === item.path;
     return (
       <Link
-        to={item.path ? (item.path.startsWith("/") ? item.path : `/admin/base/${item.path}`) : "#"}
+        to={item.path ? (item.path.startsWith("/") ? item.path : `/${role}/base/${item.path}`) : "#"}
         className={`block rounded-md px-3 py-2 text-sm ${
           active ? "bg-indigo-50 text-indigo-600" : "text-gray-600 hover:bg-gray-50"
         }`}

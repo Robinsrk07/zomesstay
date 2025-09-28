@@ -48,7 +48,6 @@ export default function EarningRevenueCard() {
 
   return (
     <div className="rounded-xl bg-white shadow-sm ring-1 ring-black/5">
-      {/* header */}
       <div className="flex items-center justify-between px-4 py-3">
         <h3 className="text-[15px] font-semibold text-slate-800">Earning Revenue</h3>
         <div className="flex items-center gap-2">
@@ -65,12 +64,10 @@ export default function EarningRevenueCard() {
               {k === "week" ? "Week" : k === "month" ? "Month" : "Year"}
             </button>
           ))}
-          {/* menu dots (optional) */}
           <div className="ml-1 h-8 w-8 grid place-content-center text-slate-400">⋮</div>
         </div>
       </div>
 
-      {/* chart */}
       <div className="h-[360px] px-2 pb-4">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
@@ -110,7 +107,7 @@ export default function EarningRevenueCard() {
             <Area
               type="monotone"
               dataKey="y"
-              stroke="#4f46e5"          /* indigo-600 */
+              stroke="#4f46e5"         
               strokeWidth={4}
               fill="url(#revFill)"
               activeDot={{ r: 5 }}
@@ -120,7 +117,6 @@ export default function EarningRevenueCard() {
         </ResponsiveContainer>
       </div>
 
-      {/* x-axis title (optional, like screenshot) */}
       <div className="pb-4 text-center text-xs text-slate-400">Months</div>
     </div>
   );
