@@ -24,6 +24,7 @@ export const HOST_AUTH = {
 
 export const PROPERTY = {
   PROPERTY: '/properties',
+  PROPERTY_BY_QUERY: '/properties/search',
   AMENITIES: '/amenities',
   FACILITIES: '/facilities',
   SAFETIES: '/safety-hygiene',

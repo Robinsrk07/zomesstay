@@ -38,10 +38,13 @@ import HostPaymentsTransactions from "./pages/Host/HostPayment";
 import HostPromotionsDiscounts from "./pages/Host/HostPromotionsDiscounts";
 import Inventory from "./pages/Host/inventory";
 import MealPlan from "./pages/Host/MealPlan";
+import { SearchProvider } from "./context/SearchContext";
+import 'react-datepicker/dist/react-datepicker.css';
 
 export default function App() {
   return (
     <BrowserRouter>
+      <SearchProvider>
       <ToastContainer position="top-center" autoClose={5000} />
 
       <Routes>
@@ -105,6 +108,7 @@ export default function App() {
         
         </Route>
       </Routes>
+      </SearchProvider>
     </BrowserRouter>
   );
 }

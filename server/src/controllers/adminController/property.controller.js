@@ -1,8 +1,15 @@
 // controllers/PropertyController.js
-const { PrismaClient } = require('@prisma/client');
+const { PrismaClient, Prisma } = require('@prisma/client');
 const { log, Console } = require('console');
 const prisma = new PrismaClient();
 const path = require('path');
+const {
+  dayUTC,
+  diffNights,
+  eachDateUTC,
+  fetchAvailableProperties,
+  calculateRoomAssignments
+} = require('../../utils/property.utils');
 
 /* ---------------------------- helpers ---------------------------- */
 const parseJSON = (v, fallback) => {
@@ -57,6 +64,30 @@ function addDaysUtc(base, days) {
   const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate()));
   d.setUTCDate(d.getUTCDate() + days);
   return d;
+}
+
+function toPlain(obj) {
+  if (obj === null || obj === undefined) return obj;
+
+  if (obj instanceof Prisma.Decimal) {
+    return obj.toNumber();
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(toPlain);
+  }
+
+  if (typeof obj === 'object') {
+    const result = {};
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        result[key] = toPlain(obj[key]);
+      }
+    }
+    return result;
+  }
+
+  return obj;
 }
 
 /* -------------------------- controller -------------------------- */
@@ -412,6 +443,24 @@ createProperty:async (req, res) => {
       roomtypes,
     } = req.body;
 
+    let locationData;
+    try {
+      locationData = typeof location === 'string' ? JSON.parse(location) : location;
+    } catch (err) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid location data format'
+      });
+    }
+
+    // Validate location structure
+    if (!locationData?.address || !locationData?.coordinates) {
+      return res.status(400).json({
+        success: false,
+        message: 'Location must include address and coordinates'
+      });
+    }
+
     if (!title?.trim()) {
       return res.status(400).json({ success: false, message: 'Title is required' });
     }
@@ -476,7 +525,7 @@ createProperty:async (req, res) => {
           status,
           propertyTypeId: propertyTypeId || null,
           ownerHostId: ownerHostId || null,
-          location: location ? safeJSON(location, null) : null,
+          location: locationData || null, 
 
           // property-level joins
           amenities: amenityList.length
@@ -503,7 +552,7 @@ createProperty:async (req, res) => {
           media: mediaFiles.length
             ? {
                 create: mediaFiles.map((file, idx) => ({
-                  url: file.path, // or your public URL builder
+                  url: file.url, // or your public URL builder
                   type: file.mimetype.startsWith('image') ? 'image' : 'video',
                   isFeatured: idx === 0,
                   order: idx,
@@ -572,44 +621,365 @@ createProperty:async (req, res) => {
 ,
 getProperties: async (req, res) => {
   try {
-    const properties = await prisma.property.findMany({
-      where: { isDeleted: false },
-      orderBy: { createdAt: "desc" },
-      include: {
-        propertyType: true,
+    const { 
+      page = 1, 
+      limit = 10,
+      search,
+      propertyType,
+      minPrice,
+      maxPrice,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = req.query;
 
-        // M:N relations through join tables
-        amenities: { include: { amenity: true } },
-        facilities: { include: { facility: true } },
-        safeties: { include: { safety: true } },
+    // Validate pagination
+    const skip = Math.max(0, (parseInt(page) - 1) * parseInt(limit));
+    const take = Math.min(100, Math.max(1, parseInt(limit)));
 
-        // RoomTypes + their RoomType master + nested Rooms
+    // Build where clause
+    const where = {
+      isDeleted: false,
+      ...(search && {
+        OR: [
+          { title: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } }
+        ]
+      }),
+      ...(propertyType && { propertyTypeId: propertyType }),
+      ...(minPrice && { 
         roomTypes: {
-          include: {
-            roomType: true,
+          some: { basePrice: { gte: parseFloat(minPrice) } }
+        }
+      }),
+      ...(maxPrice && {
+        roomTypes: {
+          some: { basePrice: { lte: parseFloat(maxPrice) } }
+        }
+      })
+    };
+
+    // Validate sort fields
+    const allowedSortFields = ['createdAt', 'title', 'avgRating', 'basePrice'];
+    const orderBy = {
+      [allowedSortFields.includes(sortBy) ? sortBy : 'createdAt']: 
+      sortOrder === 'asc' ? 'asc' : 'desc'
+    };
+
+    // Get total count with filters
+    const total = await prisma.property.count({ where });
+
+    // Main query with optimized select
+    const properties = await prisma.property.findMany({
+      where,
+      orderBy,
+      skip,
+      take,
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        status: true,
+        location: true,
+        coverImage: true,
+        avgRating: true,
+        reviewCount: true,
+        createdAt: true,
+
+        propertyType: { 
+          select: { id: true, name: true } 
+        },
+
+        amenities: {
+          where: { isDeleted: false },
+          select: {
+            amenity: { 
+              select: { id: true, name: true, icon: true, isActive: true } 
+            },
+          },
+        },
+
+        facilities: {
+          where: { isDeleted: false },
+          select: {
+            facility: { 
+              select: { id: true, name: true, icon: true, isActive: true } 
+            },
+          },
+        },
+
+        safeties: {
+          where: { isDeleted: false },
+          select: {
+            safety: { 
+              select: { id: true, name: true, icon: true, isActive: true } 
+            },
+          },
+        },
+
+        roomTypes: {
+          where: { 
+            isDeleted: false, 
+            isActive: true 
+          },
+          select: {
+            id: true,
+            basePrice: true,
+            Occupancy: true,
+            extraBedCapacity: true,
+            extraBedPriceAdult: true,
+            extraBedPriceChild: true,
+            extraBedPriceInfant: true,
+            roomType: { 
+              select: { id: true, name: true, status: true } 
+            },
             rooms: {
               where: { isDeleted: false },
-              include: {
-                amenities: { include: { amenity: true } },
+              select: {
+                id: true,
+                name: true,
+                code: true,
+                status: true,
+                maxOccupancy: true,
+                amenities: {
+                  where: { isDeleted: false },
+                  select: {
+                    amenity: { 
+                      select: { id: true, name: true, icon: true } 
+                    },
+                  },
+                },
               },
             },
           },
         },
 
-        // Direct relations
-        specialRates: true,
-        media: true,
-        MealPlan: true,
-        reviews: true,
+        media: {
+          where: { isDeleted: false },
+          select: { 
+            id: true, 
+            url: true, 
+            type: true, 
+            isFeatured: true, 
+            order: true 
+          },
+        },
+
+        specialRates: {
+          where: { 
+            isDeleted: false, 
+            isActive: true 
+          },
+          select: {
+            id: true,
+            name: true,
+            kind: true,
+            pricingMode: true,
+            flatPrice: true,
+            percentAdj: true,
+            dateFrom: true,
+            dateTo: true,
+            priority: true,
+          },
+        },
+
+        MealPlan: {
+          where: { isDeleted: false },
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            kind: true,
+            adult_price: true,
+            child_price: true,
+          },
+        },
+
+        reviews: {
+          where: { isDeleted: false },
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+          select: {
+            id: true,
+            rating: true,
+            description: true,
+            createdAt: true,
+            user: {
+              select: {
+                id: true,
+                username: true,
+                firstname: true,
+                lastname: true,
+                profileImage: true,
+              },
+            },
+          },
+        },
       },
     });
 
-    res.json({ success: true, data: properties });
+    // Transform and flatten data
+    const data = toPlain(
+      properties.map((p) => ({
+        ...p,
+        amenities: p.amenities.map((x) => x.amenity),
+        facilities: p.facilities.map((x) => x.facility),
+        safeties: p.safeties.map((x) => x.safety),
+        roomTypes: p.roomTypes.map((rt) => ({
+          ...rt,
+          rooms: rt.rooms.map((r) => ({
+            ...r,
+            amenities: r.amenities.map((a) => a.amenity),
+          })),
+        })),
+      }))
+    );
+
+    // Return paginated response
+    return res.json({ 
+      success: true, 
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
+
   } catch (err) {
-    console.error("getProperties:", err);
-    res.status(500).json({ success: false, message: "Error fetching properties" });
+    console.error('getProperties:', err);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Error fetching properties',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
-},  
+},
+searchProperties: async (req, res) => {
+  try {
+    // Input validation remains the same
+    const {
+      checkIn,
+      checkOut,
+      adults = 2,
+      children = 0,
+      infants = 0,
+      rooms = 1,
+      infantsUseBed = 0,
+    } = req.query;
+
+
+    if (!checkIn || !checkOut) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Check-in and check-out dates are required (YYYY-MM-DD format)' 
+      });
+    }
+
+    // Parse and validate dates
+    const startDate = dayUTC(checkIn);
+    const endDate = dayUTC(checkOut);
+    const today = dayUTC(new Date());
+
+    if (isNaN(startDate) || isNaN(endDate)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid date format'
+      });
+    }
+
+    if (startDate < today) {
+      return res.status(400).json({
+        success: false,
+        message: 'Check-in date cannot be in the past'
+      });
+    }
+
+    if (endDate <= startDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Check-out date must be after check-in date'
+      });
+    }
+
+    // Parse guest numbers
+    const need = {
+      adults: Math.max(0, Number(adults) || 0),
+      children: Math.max(0, Number(children) || 0),
+      infants: Math.max(0, Number(infants) || 0),
+      rooms: Math.max(1, Number(rooms) || 1),
+      infantsUseBed: Boolean(infantsUseBed),
+    };
+
+    const needsBedInfants = need.infantsUseBed ? need.infants : 0;
+    const needsBedTotal = need.adults + need.children + needsBedInfants;
+
+    if (needsBedTotal === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'At least one guest required'
+      });
+    }
+
+    // Calculate search parameters
+    const nights = diffNights(checkIn, checkOut);
+    const dateList = eachDateUTC(checkIn, checkOut);
+    const dateISO = dateList.map(d => d.toISOString());
+
+    // Fetch available properties
+    const availableProperties = await fetchAvailableProperties(
+      startDate,
+      endDate,
+      need,
+      needsBedTotal
+    );
+
+
+    console.log("available property ",JSON.stringify(availableProperties, null, 2));
+
+    // Calculate room assignments and prices
+    const results = calculateRoomAssignments(
+      availableProperties,
+      need,
+      needsBedInfants,
+      nights,
+      dateISO
+    );
+
+
+    console.log("search results ",JSON.stringify(results, null, 2));
+    // Sort results by total price
+    results.sort((a, b) => a.pricing.totalPrice - b.pricing.totalPrice);
+
+    // Return response
+    return res.json({
+      success: true,
+      params: {
+        checkIn: startDate.toISOString(),
+        checkOut: endDate.toISOString(),
+        nights,
+        guests: { 
+          adults: need.adults, 
+          children: need.children, 
+          infants: need.infants, 
+          infantsUseBed: need.infantsUseBed 
+        },
+        rooms: need.rooms,
+      },
+      data: results,
+      message: results.length ? undefined : 'No properties match the requested criteria'
+    });
+
+  } catch (err) {
+    console.error('searchProperties:', err);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Error searching properties',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  }
+}
+,
 
   getProperty: async (req, res) => {
     try {

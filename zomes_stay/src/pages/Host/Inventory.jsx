@@ -5,7 +5,7 @@ import {specialRateService,propertyService,inventoryService} from '../../service
 import { toast } from 'react-toastify';
 
 const PMSInventory = () => {
-  const [propertyId] = useState('4fe5a0ba-f1c5-4650-91a2-605008189337');
+  const [propertyId] = useState('8f36d332-f886-45d4-91a9-fabeca6126ca');
   const [availabilityData, setAvailabilityData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);

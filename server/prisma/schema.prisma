@@ -238,8 +238,8 @@ model Property {
   ownerHostId String @db.Char(36)
   ownerHost   Host   @relation(fields: [ownerHostId], references: [id])
 
-  propertyTypeId String?       @db.Char(36)
-  propertyType   PropertyType? @relation(fields: [propertyTypeId], references: [id])
+  propertyTypeId  String?       @db.Char(36)
+  propertyType    PropertyType? @relation(fields: [propertyTypeId], references: [id])
 
   media         PropertyMedia[]
   roomTypes     PropertyRoomType[]
@@ -301,9 +301,14 @@ model PropertyRoomType {
   isDeleted  Boolean  @default(false)
   isActive   Boolean  @default(true)
 
-  property Property @relation(fields: [propertyId], references: [id])
-  roomType RoomType @relation(fields: [roomTypeId], references: [id])
+  Occupancy           Int     @default(2)
+  extraBedCapacity    Int     @default(0)
+  extraBedPriceAdult  Decimal @default(0) @db.Decimal(10, 2)
+  extraBedPriceChild  Decimal @default(0) @db.Decimal(10, 2)
+  extraBedPriceInfant Decimal @default(0) @db.Decimal(10, 2)
 
+  property         Property              @relation(fields: [propertyId], references: [id])
+  roomType         RoomType              @relation(fields: [roomTypeId], references: [id])
   rooms            Room[]
   rates            RateCalendar[]
   bookings         Booking[]

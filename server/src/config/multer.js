@@ -2,16 +2,17 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 
+// Base upload directory
 const UPLOAD_BASE = path.join(__dirname, '..', '..', 'uploads');
 fs.mkdirSync(UPLOAD_BASE, { recursive: true });
 
+// Configure storage
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const t = file.mimetype;
     const sub = t.startsWith('image/') ? 'images' : t.startsWith('video/') ? 'videos' : 'other';
     const dir = path.join(UPLOAD_BASE, sub);
     fs.mkdirSync(dir, { recursive: true });
-    // Store the subdirectory in the file object for later use in the controller
     file.subdirectory = sub;
     cb(null, dir);
   },
@@ -19,45 +20,91 @@ const storage = multer.diskStorage({
     const ext = path.extname(file.originalname);
     const base = path.basename(file.originalname, ext).replace(/\s+/g, '_');
     const filename = `${Date.now()}_${base}${ext}`;
-    // Store the full relative path in the file object
-    file.relativePath = path.join(file.subdirectory, filename).replace(/\\/g, '/');
+    
+    // Store both filesystem path and URL-friendly path
+    file.url = `/uploads/${file.subdirectory}/${filename}`;
+    
     cb(null, filename);
   }
 });
 
-const ALLOWED_IMAGES = new Set(['image/jpeg','image/png','image/webp','image/gif']);
-const ALLOWED_VIDEOS = new Set(['video/mp4','video/webm','video/quicktime','video/x-matroska']);
+// Allowed file types
+const ALLOWED_IMAGES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/jpg'
+]);
 
-const imageFilter = (req, file, cb) =>
-  ALLOWED_IMAGES.has(file.mimetype) ? cb(null, true) : cb(new Error('Only image files are allowed'));
+const ALLOWED_VIDEOS = new Set([
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+  'video/x-matroska'
+]);
 
-const videoFilter = (req, file, cb) =>
-  ALLOWED_VIDEOS.has(file.mimetype) ? cb(null, true) : cb(new Error('Only video files are allowed'));
+// File filters
+const imageFilter = (req, file, cb) => {
+  if (ALLOWED_IMAGES.has(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only image files are allowed (jpg, png, webp, gif)'));
+  }
+};
 
-const mediaFilter = (req, file, cb) =>
-  (ALLOWED_IMAGES.has(file.mimetype) || ALLOWED_VIDEOS.has(file.mimetype))
-    ? cb(null, true)
-    : cb(new Error('Only image or video files are allowed'));
+const videoFilter = (req, file, cb) => {
+  if (ALLOWED_VIDEOS.has(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only video files are allowed (mp4, webm, mov, mkv)'));
+  }
+};
 
+const mediaFilter = (req, file, cb) => {
+  if (ALLOWED_IMAGES.has(file.mimetype) || ALLOWED_VIDEOS.has(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only image or video files are allowed'));
+  }
+};
+
+// Multer upload configurations
 const uploadImage = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024, files: 1 }, // 5MB
+  limits: { 
+    fileSize: 5 * 1024 * 1024, // 5MB
+    files: 1 
+  },
   fileFilter: imageFilter
 });
 
 const uploadVideo = multer({
   storage,
-  limits: { fileSize: 200 * 1024 * 1024, files: 1 }, // 200MB
+  limits: { 
+    fileSize: 200 * 1024 * 1024, // 200MB
+    files: 1 
+  },
   fileFilter: videoFilter
 });
 
 const uploadMedia = multer({
   storage,
-  limits: { fileSize: 200 * 1024 * 1024, files: 30 },
+  limits: { 
+    fileSize: 200 * 1024 * 1024, // 200MB
+    files: 30 
+  },
   fileFilter: mediaFilter
 });
 
-// Helper: only run Multer for multipart requests (file optional)
+// Helper function for multipart requests
 const isMultipart = (req) => (req.headers['content-type'] || '').startsWith('multipart/form-data');
 
-module.exports = { uploadImage, uploadVideo, uploadMedia, isMultipart, UPLOAD_BASE };
+// Export configurations
+module.exports = {
+  uploadImage,
+  uploadVideo,
+  uploadMedia,
+  isMultipart,
+  UPLOAD_BASE
+};

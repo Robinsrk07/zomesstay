@@ -8,12 +8,18 @@ getFacilities:()=>apiService.get(PROPERTY.FACILITIES),
 getSafeties:()=>apiService.get(PROPERTY.SAFETIES),
 getRoomTypes:()=>apiService.get(PROPERTY.ROOM_TYPES),
 getRooms:()=>apiService.get(PROPERTY.ROOMS),
+
+
 getPropertyTypes:()=>apiService.get(PROPERTY.PROPERTY_TYPE),    
 getProperties:()=>apiService.get(PROPERTY.PROPERTY),
 getHostProperties:(id)=>apiService.get(`${HOST_PROPERTY.PROPERTY}/${encodeURIComponent(id)}`),
 getPropertyRoomTypes:(id)=>apiService.get(`${PROPERTY.PROPERTY_ROOM_TYPES}/${encodeURIComponent(id)}`),
+getPropertyByQuery:(query)=>apiService.get(`${PROPERTY.PROPERTY_BY_QUERY}/${encodeURIComponent(query)}`),
 
-
+searchProperties: (params) => {
+    console.log('Search params:', params); // Debug log
+    return apiService.get(PROPERTY.PROPERTY_BY_QUERY, { params });
+},
 
 createAmenity:(amenity)=>apiService.post(PROPERTY.AMENITIES,amenity),
 createFacility:(facility)=>apiService.post(PROPERTY.FACILITIES,facility),

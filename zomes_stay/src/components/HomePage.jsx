@@ -1,11 +1,13 @@
 import Banner from "./Banner";
 import CardRow from "./CardRow";
 import FeatureCardRow from "./FeatureCardRow";
+import { useOutletContext } from "react-router-dom";
 import banner from "../assets/banners/0935992b55432aba0a8696c56c5b0c3f00d9b8b5.png"
 import img1 from "../assets/banners/1b6d1e7b93df1bfb92eedff58a32d2e265408692.png";
 import img2 from "../assets/banners/685ec65edc35a4ee02667ecfe724f915d09f9fdd.png";
 
 const HomePage = () => {
+   const { searchParams } = useOutletContext();
   return (
     <div className="w-full  flex flex-col justify-center items-center ">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center   gap-4 w-full px-4 md:px-16 py-8">
@@ -36,7 +38,7 @@ const HomePage = () => {
   </div>
 </div>
 
-      <CardRow />
+      <CardRow searchParams={searchParams} />
 
       <div className=" px-4 md:px-16 py-4 w-full flex items-center justify-center">
                 <img src={img2} alt="" className="w-full h-[400px] rounded-lg object-cover" />

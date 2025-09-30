@@ -9,7 +9,7 @@ const PropertyController = require('../../controllers/adminController/property.c
 // create / list / update / delete
 PropertyRoute.post('/amenities', uploadImage.single('icon'), PropertyController.createAmenity);
 PropertyRoute.get('/amenities', PropertyController.getAmenities);
-PropertyRoute.put('/amenities/:id', uploadImage.single('icon'), PropertyController.updateAmenity);
+PropertyRoute.patch('/amenities/:id', uploadImage.single('icon'), PropertyController.updateAmenity);
 PropertyRoute.delete('/amenities/:id', PropertyController.deleteAmenity);
 
 /* --------------------------- FACILITIES -------------------------- */
@@ -44,6 +44,7 @@ PropertyRoute.post(
 );
 
 PropertyRoute.get('/properties', PropertyController.getProperties);
+PropertyRoute.get('/properties/search', PropertyController.searchProperties);
 PropertyRoute.get('/properties/:id', PropertyController.getProperty);
 PropertyRoute.put(
   '/properties/:id',
