@@ -706,7 +706,7 @@ const Properties = () => {
       title: "",
       description: "",
       propertyTypeId: "",
-      ownerHostId: "fd3f5efd-3af6-4bfc-b6e3-603166839dbb",
+      ownerHostId: "17cc8ab2-b0e9-44f4-bdfc-5d5c5a9f2dbc",
       status: "active",
       rulesAndPolicies: "",
       location: {

@@ -27,9 +27,10 @@ const MealPlanRouter = require('./src/routes/adminRoutes/mealPlan.routes');
 
 // Enable CORS
 app.use(cors({
-  origin: "http://localhost:5173",
+  origin: ["http://localhost:5173", "https://zomesstay-web.onrender.com"],
   credentials: true
-}))
+}));
+
 
 
 // Parse JSON and URL-encoded bodies
