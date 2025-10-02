@@ -42,7 +42,6 @@ import {
       children: [
         { label: "Inventory", path: "inventory_management" },
         { label: "Meal Plan", path: "meal_plans" },
-        { label: "Special Rate", path: "special_rate" },
 
        
       ],
