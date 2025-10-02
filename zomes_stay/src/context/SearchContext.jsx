@@ -4,7 +4,7 @@ const SearchContext = createContext();
 
 export const SearchProvider = ({ children }) => {
   const [searchParams, setSearchParams] = useState(null);
-
+  // This handler is called from Header component
   const handleSearch = (params) => {
     setSearchParams(params);
   };

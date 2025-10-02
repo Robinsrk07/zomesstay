@@ -1,7 +1,7 @@
 import Card from "./Card";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { propertyService ,mediaService} from "../services";
+import { propertyService, mediaService } from "../services";
 import { useSearch } from "../context/SearchContext";
 import Loader from "./Loader";
 
@@ -14,13 +14,15 @@ export default function CardRow() {
   const getProperties = async () => {
     setLoading(true);
     try {
-      console.log('Search params in getProperties:', searchParams); // Debug log
-      
       if (searchParams && (searchParams.checkIn || searchParams.checkOut)) {
         const response = await propertyService.searchProperties(searchParams);
-        console.log('Search response:', response); // Debug log
         if (response?.data?.data) {
-          setProperties(response.data.data);
+          const searchResults = response.data.data.map((result) => ({
+            ...result.property,
+            totalCapacity: result.totalCapacity,
+            availableRooms: result.availableRooms,
+          }));
+          setProperties(searchResults);
         }
       } else {
         const response = await propertyService.getProperties();
@@ -30,6 +32,7 @@ export default function CardRow() {
       }
     } catch (error) {
       console.error("Error fetching properties:", error);
+      setProperties([]);
     } finally {
       setLoading(false);
     }
@@ -37,33 +40,30 @@ export default function CardRow() {
 
   useEffect(() => {
     getProperties();
-  }, [searchParams]); // Re-fetch when search params change
+  }, [searchParams]);
 
   const getPropertyDetails = (property) => {
-    // Calculate total guests
-    const totalGuests = property?.roomTypes?.reduce((sum, roomType) => {
-      return sum + (roomType.rooms.length * (roomType.Occupancy + roomType.extraBedCapacity));
-    }, 0);
+    const totalGuests =
+      property?.roomTypes?.reduce((sum, roomType) => {
+        return (
+          sum + roomType.rooms.length * (roomType.Occupancy + roomType.extraBedCapacity)
+        );
+      }, 0) || 0;
 
-    // Calculate total rooms
-    const totalRooms = property?.roomTypes?.reduce((sum, roomType) => {
-      return sum + roomType.rooms.length;
-    }, 0);
+    const totalRooms =
+      property?.roomTypes?.reduce((sum, roomType) => sum + roomType.rooms.length, 0) || 0;
 
-    // Find minimum base price
-    const minPrice = Math.min(...(property?.roomTypes?.map(rt => rt.basePrice) || [7899]));
+    const minPrice = Math.min(...(property?.roomTypes?.map((rt) => rt.basePrice) || [7899]));
 
-    // Get featured image URL or first image URL
-    const propertyImage = property?.media?.find(m => m.isFeatured)?.url || 
-                         property?.media?.[0]?.url;
-    const image_url = mediaService.getMedia(propertyImage) 
-                       
-    // Demo locations based on property name
+    const propertyImage =
+      property?.media?.find((m) => m.isFeatured)?.url || property?.media?.[0]?.url;
+    const image_url = mediaService.getMedia(propertyImage);
+
     const locations = {
       "Taj resorts": "Wayanad, Kerala",
       "Wild Planet Resorts": "Munnar, Kerala",
       "Lavender Mist": "Vagamon, Kerala",
-      "SUNRISE WALLEY": "Thekkady, Kerala"
+      "SUNRISE WALLEY": "Thekkady, Kerala",
     };
 
     return {
@@ -71,29 +71,45 @@ export default function CardRow() {
       title: property.title,
       location: locations[property.title] || "Kerala, India",
       rating: property.avgRating || "4.8",
-      guests: totalGuests || 0,
-      rooms: totalRooms || 0,
+      guests: totalGuests,
+      rooms: totalRooms,
       price: minPrice,
-      originalPrice: Math.floor(minPrice * 1.5)
+      originalPrice: Math.floor(minPrice * 1.5),
     };
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full" id="search-results">
       {loading ? (
         <Loader />
       ) : (
-        <div className="grid grid-cols-1 px-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:px-8">
-          {properties.map((property) => {
+        // One container that is a horizontal scroller on mobile,
+        // and a grid from sm: and up (unchanged from your layout).
+        <div
+          className="
+            flex flex-nowrap overflow-x-auto no-scrollbar snap-x snap-mandatory gap-4 px-2
+            sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 sm:gap-4 sm:px-8 sm:overflow-visible
+          "
+        >
+          {properties.map((property, idx) => {
             const propertyDetails = getPropertyDetails(property);
             return (
-              <div key={property.id} onClick={() => navigate(`/app/properties/${property.id}`)}>
+              <div
+                key={property.id || idx}
+                onClick={() => navigate(`/app/properties/${property.id}`)}
+                className="
+                  flex-none w-[85%] max-w-[22rem] snap-start
+                  sm:w-auto sm:max-w-none sm:flex-initial
+                "
+              >
                 <Card {...propertyDetails} bestRated={true} />
               </div>
             );
           })}
+          {/* spacing at end for nicer scroll feel on mobile */}
+          <div className="flex-none w-4 sm:hidden" />
         </div>
       )}
     </div>
-  )
+  );
 }

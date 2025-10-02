@@ -1,4 +1,4 @@
-import React, { useState ,useMemo} from "react";
+import React, { useState ,useMemo,useEffect} from "react";
 import FacilityCardRow from "../components/FacilityCardRow";
 import AmenitiesList from "../components/AmenitiesList";
 import SafetyHygieneList from "../components/SafetyHygieneList";
@@ -7,7 +7,10 @@ import RoomCard from "../components/RoomCard";
 import RoomCardData from "../data/RoomCard.json";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import { Star } from "lucide-react";
-
+import { useParams, useLocation } from "react-router-dom";
+import { propertyDetailsService ,mediaService } from "../services";
+import processCalendarData from "../utils/calendarDataProcessor";
+import { useRef } from "react";
 
 const facilities = [
   { title: "Restaurants",   
@@ -29,79 +32,79 @@ const facilities = [
     image: "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=800&q=80" },
 ];
 
-export const safetyAndHygiene = [
-    { title: "Daily Cleaning",              icon: "https://api.iconify.design/mdi:broom.svg" },
-    { title: "Disinfection & Sterilization",icon: "https://api.iconify.design/mdi:spray-bottle.svg" },
-    { title: "Fire Extinguishers",          icon: "https://api.iconify.design/mdi:fire-extinguisher.svg" },
-    { title: "Smoke Detectors",             icon: "https://api.iconify.design/mdi:smoke-detector.svg" },
-    { title: "First Aid Kit",               icon: "https://api.iconify.design/mdi:first-aid-kit.svg" },
-    { title: "CCTV (Common Areas)",         icon: "https://api.iconify.design/mdi:cctv.svg" },
-    { title: "Hand Sanitizer Stations",     icon: "https://api.iconify.design/mdi:hand-water.svg" },
-    { title: "Contactless Check-in",        icon: "https://api.iconify.design/mdi:cellphone-nfc.svg" },
-    { title: "Emergency Exits",             icon: "https://api.iconify.design/mdi:exit-run.svg" },
-    { title: "Air Purifiers",               icon: "https://api.iconify.design/mdi:air-purifier.svg" },
-  ];
-  
-export const amenities = [
-    { title: "Kitchen",          icon: "https://api.iconify.design/lucide:utensils.svg" },
-    { title: "Playgrounds",      icon: "https://api.iconify.design/lucide:bike.svg" },
-    { title: "Laundry Facilities",icon: "https://api.iconify.design/lucide:shirt.svg" },
-    { title: "Fitness",          icon: "https://api.iconify.design/lucide:dumbbell.svg" },
-    { title: "Green Spaces",     icon: "https://api.iconify.design/lucide:trees.svg" },
-    { title: "EV Charging",      icon: "https://api.iconify.design/lucide:plug-zap.svg" },
-    { title: "Parking",          icon: "https://api.iconify.design/lucide:car.svg" },
-    { title: "Free Wi-Fi",       icon: "https://api.iconify.design/lucide:wifi.svg" },
-    { title: "Swimming Pool",    icon: "https://api.iconify.design/lucide:waves.svg" },
-    { title: "Pet Friendly",     icon: "https://api.iconify.design/lucide:paw-print.svg" },
-  ];
+
+
   
 
-const dummyImages = [
-  "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80",
-  "https://images.unsplash.com/photo-1465101046530-73398c7f28ca?auto=format&fit=crop&w=800&q=80",
-  "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=800&q=80",
-  "https://images.unsplash.com/photo-1519125323398-675f0ddb6308?auto=format&fit=crop&w=800&q=80",
-  "https://images.unsplash.com/photo-1519125323398-675f0ddb6308?auto=format&fit=crop&w=800&q=80",
-  "https://images.unsplash.com/photo-1519125323398-675f0ddb6308?auto=format&fit=crop&w=800&q=80",
-  "https://images.unsplash.com/photo-1519125323398-675f0ddb6308?auto=format&fit=crop&w=800&q=80",
-  "https://images.unsplash.com/photo-1519125323398-675f0ddb6308?auto=format&fit=crop&w=800&q=80",
-];
 
-export default function Detials() {
+
+
+const DetailsPage = () => {
+  
+  const { id } = useParams();
+  const { state } = useLocation();
   const [modal, setModal] = useState(false);
   const [deluxe,setDeluxe] = useState(true)
   const [premium,setPremium] = useState(false)
   const [suite,setSuite] = useState(false)
-  // const [img,setImg] =useState(dummyImages[0])
   const [currentIndex,setCurrentIndex] = useState(0)
-  const mainImage = dummyImages[0];
-  const sideImages = dummyImages.slice(1, 5);
-  const remaining = Math.max(0, dummyImages.length - 5);
-  // const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [range, setRange] = useState({ start: null, end: null });
+  const [media,setMedia] = useState([])
+  const mainImage = media[0];
+  const sideImages = media.slice(1, 5);
+  const[loading,setLoading]=useState(false)
+  const remaining = Math.max(0, media.length - 5);
   const [reviews] = useState([
     {
       id: 1,
-      name: "Arun Kumar",
-      avatar: "https://i.pravatar.cc/50?img=1",
-      rating: 4,
-      review: "The property was clean and well maintained. Had a comfortable stay."
+      name: "John Doe",
+      rating: 5,
+      review: "Amazing place! Highly recommend.",
+      avatar: "https://randomuser.me/api/portraits/men/1.jpg",
     },
     {
       id: 2,
-      name: "Sneha R",
-      avatar: "https://i.pravatar.cc/50?img=2",
-      rating: 5,
-      review: "Amazing experience! Great location, friendly host and superb amenities."
+      name: "Jane Smith",
+      rating: 4,
+      review: "Very good, but room for improvement.",
+      avatar: "https://randomuser.me/api/portraits/women/2.jpg",
     },
     {
       id: 3,
-      name: "Rahul M",
-      avatar: "https://i.pravatar.cc/50?img=3",
+      name: "Alice Johnson",
+      rating: 5,
+      review: "Loved it! Will come again.",
+      avatar: "https://randomuser.me/api/portraits/women/3.jpg",
+    },
+    {
+      id: 4,
+      name: "Bob Brown",
       rating: 3,
-      review: "Decent stay. Could improve the cleanliness and service speed."
-    }
+      review: "It's okay, not great.",
+      avatar: "https://randomuser.me/api/portraits/men/4.jpg",
+    },
+    {
+      id: 5,
+      name: "Charlie Green",
+      rating: 4,
+      review: "Nice place, friendly staff.",
+      avatar: "https://randomuser.me/api/portraits/men/5.jpg",
+    },
   ]);
-    // Calculate average rating
+  const [propertyDetails, setPropertyDetails] = useState(null);
+  const [selectedRoomTypeId, setSelectedRoomTypeId] = useState(null);
+  const [selectedRoomId, setSelectedRoomId] = useState(null);
+  const [selectedMealPlan, setSelectedMealPlan] = useState(null);
+  const [extraBed, setExtraBed] = useState(0);
+  const [showRoomSelection, setShowRoomSelection] = useState(false);
+const [selectedRooms, setSelectedRooms] = useState([]); // Array of { roomId, roomTypeId, mealPlanId, extraBeds }
+const roomSectionRef = useRef(null);
+
+  console.log(propertyDetails)
+
+
+  console.log(propertyDetails)
+  console.log(mainImage)
   const avgRating = useMemo(() => {
     const total = reviews.reduce((acc, r) => acc + r.rating, 0);
     return (total / reviews.length).toFixed(1);
@@ -122,14 +125,156 @@ export default function Detials() {
   };
 
   const goPrev =()=>{
-  setCurrentIndex((i) => (i - 1 + dummyImages.length) % dummyImages.length);
+  setCurrentIndex((i) => (i - 1 + media.length) % media.length);
   }
 
   const goNext=()=>{
-  setCurrentIndex((i) => (i + 1) % dummyImages.length);
+  setCurrentIndex((i) => (i + 1) % media.length);
 
   }
+ 
+const handleFetchDetials = async(id) => {
 
+  console.log("Fetching details for property ID:", id);
+  setLoading(true);
+  try {
+    const today = new Date();
+    const startDate = today.toISOString().split('T')[0];    
+    const endDate = new Date(today.getFullYear(), today.getMonth() + 3, 0)
+      .toISOString().split('T')[0];
+    const params = {
+      startDate,
+      endDate
+    };
+
+    console.log(params)
+
+    const response = await propertyDetailsService.getPropertyDetails(id, params);
+    setPropertyDetails(response?.data?.data);
+    setMedia(response?.data?.data?.media.map((item) => item.url) || []);
+  } catch (error) {
+    console.error("Error fetching property details:", error);
+  } finally {
+    setLoading(false);
+  }
+}
+const handleBookNowClick = () => {
+  if (range.start && range.end) {
+    setShowRoomSelection(true);
+    // Scroll to room section after state update
+    setTimeout(() => {
+      roomSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+  }
+};
+
+// Calculate number of nights
+const calculateNights = () => {
+  if (!range.start || !range.end) return 0;
+  const diffTime = Math.abs(range.end - range.start);
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays;
+};
+
+// Toggle room selection
+const toggleRoomSelection = (room, roomType) => {
+  const roomId = room.id;
+  const existing = selectedRooms.find(r => r.roomId === roomId);
+  
+  if (existing) {
+    // Remove room
+    setSelectedRooms(selectedRooms.filter(r => r.roomId !== roomId));
+  } else {
+    // Add room with default values
+    setSelectedRooms([...selectedRooms, {
+      roomId: roomId,
+      roomTypeId: roomType.id,
+      roomName: room.name,
+      roomCode: room.code,
+      basePrice: roomType.basePrice,
+      maxOccupancy: roomType.Occupancy,
+      extraBedCapacity: roomType.extraBedCapacity,
+      extraBedPrice: roomType.extraBedPrice || 500, // Default if not in data
+      mealPlanId: null,
+      extraBeds: 0
+    }]);
+  }
+};
+
+// Update meal plan for a specific room
+const updateRoomMealPlan = (roomId, mealPlanId) => {
+  setSelectedRooms(selectedRooms.map(r => 
+    r.roomId === roomId ? { ...r, mealPlanId } : r
+  ));
+};
+
+// Update extra beds for a specific room
+const updateRoomExtraBeds = (roomId, extraBeds) => {
+  setSelectedRooms(selectedRooms.map(r => 
+    r.roomId === roomId ? { ...r, extraBeds: Math.max(0, Math.min(r.extraBedCapacity, extraBeds)) } : r
+  ));
+};
+
+// Calculate total price
+const calculateTotalPrice = () => {
+  const nights = calculateNights();
+  if (nights === 0) return 0;
+  
+  let total = 0;
+  
+  selectedRooms.forEach(room => {
+    // Room base price
+    total += room.basePrice * nights;
+    
+    // Extra bed price
+    if (room.extraBeds > 0) {
+      total += room.extraBedPrice * room.extraBeds * nights;
+    }
+    
+    // Meal plan price
+    if (room.mealPlanId) {
+      const mealPlan = propertyDetails?.MealPlan.find(m => m.id === room.mealPlanId);
+      if (mealPlan) {
+        // Assuming meal plan is per person per night
+        const guests = room.maxOccupancy + room.extraBeds;
+        total += mealPlan.adult_price * guests * nights;
+      }
+    }
+  });
+  
+  return total;
+};
+
+const calendarData = processCalendarData(propertyDetails || { roomTypes: [], specialRates: [] });
+const ListAmenities = propertyDetails?.amenities || [];
+const amenities =  ListAmenities.map((item)=>{return {title:item.name , icon:mediaService.getMedia(item.icon)}})
+const ListSafety = propertyDetails?.safeties || [];
+const safetyAndHygiene =  ListSafety.map((item)=>{return {title:item.name , icon:mediaService.getMedia(item.icon)}})
+
+
+ // const safetyAndHygiene = propertyDetails?.safeties || [];
+// const safetyAndHygiene = propertyDetails?.safeties || [];
+// const facilities = propertyDetails?.facilities || [];
+// const location = propertyDetails?.location || "Unknown Location";
+// const propertytype = propertyDetails?.propertyType || "Unknown Type";
+// const reviewCount= propertyDetails?.reviews?.length || 0;
+// const title = propertyDetails?.title || "Property Title";
+// const specialrate = Detials?.specialRate || "0";
+// const rulesandpolicy = Detials?.rulesAndPolicy || "No specific rules.";
+// const specialRate = Detials?.specialRate || "0";
+// const availbility = Detials?.roomtypes?.rooms?.availability || "No availability info";
+
+
+useEffect(()=>{
+  if(id){
+    handleFetchDetials(id)
+  }
+},[id])
+
+  // Show basic info while loading
+  if (loading && state?.basicInfo) {
+    return <BasicPropertyInfo {...state.basicInfo} />;
+  }
 
   return (
     <>
@@ -137,7 +282,7 @@ export default function Detials() {
         {/* Left: main image */}
         <div className="w-full md:w-1/2 h-[260px] md:h-[500px] ">
           <img
-            src={mainImage}
+            src={mediaService.getMedia(mainImage)}
             alt="Main"
             className="w-full h-full object-cover rounded-lg"
           />
@@ -148,7 +293,7 @@ export default function Detials() {
           {sideImages.map((img, i) => (
             <div key={i} className="relative w-full h-[180px] md:h-[245px]">
               <img
-                src={img}
+                src={mediaService.getMedia(img)}
                 alt={`Property ${i + 2}`}
                 className="w-full h-full object-cover rounded-lg"
               />
@@ -173,14 +318,14 @@ export default function Detials() {
       <div className="flex flex-col  md:flex-row p-[40px]  gap-4 ">
      
        <div className=" w-full md:w-[60%]  flex flex-col gap-4">
-          <h1 className="text-[18px] lg:text-[36px] font-bold text-[#484848]">Majestic Crest Resort </h1>
-          <p className="text-gray-400">kalpetta,Wayanad</p>
+          <h1 className="text-[18px] lg:text-[36px] font-bold text-[#484848]">{propertyDetails?.title}</h1>
+          <p className="text-gray-400">{propertyDetails?.location}</p>
           <div className=" rounded-md border border-gray-200 w-[90%] m-2 p-2">
           <FacilityCardRow facilities={facilities} />
           </div>
 
           <h1 className="text-[18px] lg:text-[36px] font-bold text-[#484848]">Resort Description</h1>
-          <p className="text-gray-400">lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, quod.Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
+          <p className="text-gray-400">{propertyDetails?.description}</p>
           <h1 className="text-[18px] lg:text-[22px] font-bold text-[#484848]"> Offered Amenities</h1>
           <AmenitiesList items={amenities} />
 
@@ -190,53 +335,220 @@ export default function Detials() {
 
        </div>
        <div className="w-full  md:w-[40%]  flex justify-center">
-        <ReservationCalendarPanel/>
-       </div>
+<ReservationCalendarPanel 
+  calendarData={calendarData}
+  onBookNow={(selectedRange) => {
+    setRange(selectedRange);
+    setShowRoomSelection(true);
+    setTimeout(() => {
+      roomSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+  }}
+/>       </div>
       
 
       </div>
 
-         <div className="flex flex-col p-[20px] md:p-[40px] gap-2 md:gap-4">
-  <h1 className="text-[18px] lg:text-[25px] font-bold text-[#484848] text-center">
-    Room Types
-  </h1>
-  <div className="flex flex-col md:flex-row items-center justify-center gap-4">
-    
-    <button
-      onClick={() => { setDeluxe(true); setPremium(false); setSuite(false); }}
-      className={`font-bold ${
-        deluxe ? "bg-[#004AAD] text-white" : "bg-white text-[#484848]"
-      } text-xs text-center h-[30px] w-full md:w-[120px] border rounded-full border-gray-200`}
-    >
-      Deluxe Rooms
-    </button>
+ {showRoomSelection && (
+  <div ref={roomSectionRef} className="bg-gray-50 p-4 md:p-8 scroll-mt-20">
+    <div className="max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+        <div className="bg-gradient-to-r from-[#004AAD] to-[#0066CC] px-6 py-5">
+          <h1 className="text-2xl font-semibold text-white">Availability</h1>
+          <p className="text-blue-100 text-sm mt-1">
+            {range.start && range.end && (
+              <>Check-in: {range.start.toLocaleDateString()} • Check-out: {range.end.toLocaleDateString()} • {calculateNights()} nights</>
+            )}
+          </p>
+        </div>
+      </div>
 
-    <button
-      onClick={() => { setDeluxe(false); setPremium(true); setSuite(false); }}
-      className={`font-bold ${
-        premium ? "bg-[#004AAD] text-white" : "bg-white text-[#484848]"
-      } text-xs text-center h-[30px] w-full md:w-[120px] border rounded-full border-gray-200`}
-    >
-      Premium Rooms
-    </button>
+      {/* Table */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="bg-[#004AAD] text-white">
+                <th className="px-6 py-4 text-left text-sm font-semibold">Room type</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold">Number of guests</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold">Price for {calculateNights()} nights</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold">Your choices</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold">Select rooms</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {propertyDetails?.roomTypes.map((roomType) => {
+                const selectedForType = selectedRooms.filter(r => r.roomTypeId === roomType.id);
+                
+                return (
+                  <tr key={roomType.id} className="hover:bg-gray-50">
+                    {/* Room Type */}
+                    <td className="px-6 py-4 align-top">
+                      <div className="font-semibold text-[#004AAD] text-base mb-2">{roomType.roomType.name}</div>
+                      <div className="text-sm text-gray-600 space-y-1">
+                        <div>1 queen bed</div>
+                        <div className="flex items-center gap-2 text-xs">
+                          <span>17 m²</span>
+                          <span>•</span>
+                          <span>Air conditioning</span>
+                          <span>•</span>
+                          <span>Private bathroom</span>
+                        </div>
+                      </div>
+                    </td>
 
-    <button
-      onClick={() => { setDeluxe(false); setPremium(false); setSuite(true); }}
-      className={`font-bold ${
-        suite ? "bg-[#004AAD] text-white" : "bg-white text-[#484848]"
-      } text-xs text-center h-[30px] w-full md:w-[120px] border rounded-full border-gray-200`}
-    >
-      Suite Rooms
-    </button>
+                    {/* Number of Guests */}
+                    <td className="px-6 py-4 align-top">
+                      <div className="flex items-center gap-1">
+                        {[...Array(roomType.Occupancy)].map((_, i) => (
+                          <svg key={i} className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                          </svg>
+                        ))}
+                      </div>
+                    </td>
+
+                    {/* Price */}
+                    <td className="px-6 py-4 align-top">
+                      <div className="space-y-1">
+                        <div className="text-lg font-bold text-gray-900">₹{(roomType.basePrice * calculateNights()).toLocaleString()}</div>
+                        <div className="text-xs text-gray-500">+ ₹{Math.round((roomType.basePrice * calculateNights()) * 0.12).toLocaleString()} taxes and fees</div>
+                      </div>
+                    </td>
+
+                    {/* Your Choices */}
+                    <td className="px-6 py-4 align-top">
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-start gap-2">
+                          <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                          <span className="text-green-700 font-medium">Free cancellation</span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                          <span className="text-green-700">No prepayment needed</span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                          <span className="text-green-700">No credit card needed</span>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Select Rooms */}
+                    <td className="px-6 py-4 align-top">
+                      <div className="space-y-3">
+                        {roomType.rooms.map((room) => {
+                          const isSelected = selectedRooms.some(r => r.roomId === room.id);
+                          const selectedRoom = selectedRooms.find(r => r.roomId === room.id);
+
+                          return (
+                            <div key={room.id} className={`border rounded-lg p-3 ${isSelected ? 'border-[#004AAD] bg-blue-50' : 'border-gray-200'}`}>
+                              {/* Room Checkbox */}
+                              <label className="flex items-center gap-2 cursor-pointer mb-3">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => toggleRoomSelection(room, roomType)}
+                                  className="w-4 h-4 text-[#004AAD] rounded border-gray-300 focus:ring-[#004AAD]"
+                                />
+                                <span className="font-medium text-sm">{room.name}</span>
+                              </label>
+
+                              {/* Options when selected */}
+                              {isSelected && (
+                                <div className="space-y-3 pl-6 border-t border-gray-200 pt-3">
+                                  {/* Extra Beds */}
+                                  {roomType.extraBedCapacity > 0 && (
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                                        Extra Beds (₹{roomType.extraBedPrice || 500}/night)
+                                      </label>
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          onClick={() => updateRoomExtraBeds(room.id, selectedRoom.extraBeds - 1)}
+                                          disabled={selectedRoom.extraBeds === 0}
+                                          className="w-7 h-7 flex items-center justify-center bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400 rounded text-sm font-bold"
+                                        >
+                                          −
+                                        </button>
+                                        <span className="w-8 text-center text-sm font-semibold">{selectedRoom.extraBeds}</span>
+                                        <button
+                                          onClick={() => updateRoomExtraBeds(room.id, selectedRoom.extraBeds + 1)}
+                                          disabled={selectedRoom.extraBeds >= roomType.extraBedCapacity}
+                                          className="w-7 h-7 flex items-center justify-center bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400 rounded text-sm font-bold"
+                                        >
+                                          +
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Meal Plan */}
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">Meal Plan</label>
+                                    <select
+                                      value={selectedRoom.mealPlanId || ''}
+                                      onChange={(e) => updateRoomMealPlan(room.id, e.target.value ? parseInt(e.target.value) : null)}
+                                      className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-[#004AAD] focus:border-[#004AAD]"
+                                    >
+                                      <option value="">No meal plan</option>
+                                      {propertyDetails?.MealPlan.map((plan) => (
+                                        <option key={plan.id} value={plan.id}>
+                                          {plan.name} - ₹{plan.adult_price}/person
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Reserve Button */}
+      {selectedRooms.length > 0 && (
+        <div className="mt-6 bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm text-gray-600 mb-1">Total for {selectedRooms.length} room(s) • {calculateNights()} nights</div>
+              <div className="text-3xl font-bold text-[#004AAD]">₹{calculateTotalPrice().toLocaleString()}</div>
+            </div>
+            <button
+              className="bg-[#004AAD] hover:bg-[#003380] text-white px-8 py-4 rounded-lg font-semibold text-lg transition-colors"
+              onClick={() => {
+                console.log('Reservation data:', {
+                  checkIn: range.start,
+                  checkOut: range.end,
+                  nights: calculateNights(),
+                  rooms: selectedRooms,
+                  total: calculateTotalPrice()
+                });
+              }}
+            >
+              I'll reserve
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   </div>
-</div>
-
-<div className="p-[20px] md:p-[40px] flex flex-col gap-4" >
-
-{RoomCardData.map((room) => (
-        <RoomCard key={room.id} room={room} />
-      ))}
-</div>
+)}
 
 <div className="p-[20px] md:p-[40px]">
   <h2 className="text-lg font-bold mb-3">Location</h2>
@@ -323,11 +635,10 @@ export default function Detials() {
                     <TransformComponent>
 
                   <img
-              
-                  src={dummyImages[currentIndex]}
-                  alt={`Gallery `}
-                  className=" object-cover w-full h-[500px] rounded-lg"
-                />
+                    src={mediaService.getMedia(media[currentIndex])}
+                    alt={`Gallery `}
+                    className=" object-cover w-full h-[500px] rounded-lg"
+                  />
 
                     </TransformComponent>
 
@@ -349,3 +660,6 @@ export default function Detials() {
     </>
   );
 }
+
+export default DetailsPage;
+

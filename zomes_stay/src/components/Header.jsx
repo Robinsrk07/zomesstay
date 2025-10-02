@@ -98,16 +98,19 @@ const Header = () => {
     }
   };
 
-  // Handle search click
+  // Add ref for scroll
   const handleSearchClick = () => {
     if (!searchParams.checkIn || !searchParams.checkOut) {
       setError("Please select both check-in and check-out dates");
       return;
     }
-
-    // Clear error and proceed with search
-    setError(null);
+    // Pass search params to context
     contextHandleSearch(searchParams);
+    // Scroll to results
+    const resultsSection = document.getElementById('search-results');
+    if (resultsSection) {
+      resultsSection.scrollIntoView({ behavior: 'smooth' });
+    }
   };
 
   // Update guest counts
@@ -276,7 +279,7 @@ const Header = () => {
             {/* Search Button */}
             <button
               onClick={handleSearchClick}
-              className="h-11 bg-[#004AAD] text-white px-8 rounded-md font-semibold hover:bg-[#003080] transition text-sm md:text-base whitespace-nowrap flex items-center justify-center"
+              className="h-11 bg-[#004AAD] text-white px-8 mt-4 rounded-md font-semibold hover:bg-[#003080] transition text-sm md:text-base whitespace-nowrap flex items-center justify-center"
               style={{minWidth:'120px'}}
             >
               SEARCH

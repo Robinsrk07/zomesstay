@@ -32,6 +32,7 @@ export const PROPERTY = {
   ROOMS: '/properties',
   PROPERTY_TYPE: '/property-types',
   PROPERTY_ROOM_TYPES:'/propertyroomtype',
+  PROPERTY_DETAILS:'/propertiesDetials',
   
 
 };

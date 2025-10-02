@@ -935,9 +935,7 @@ searchProperties: async (req, res) => {
     );
 
 
-    console.log("available property ",JSON.stringify(availableProperties, null, 2));
 
-    // Calculate room assignments and prices
     const results = calculateRoomAssignments(
       availableProperties,
       need,
@@ -947,11 +945,7 @@ searchProperties: async (req, res) => {
     );
 
 
-    console.log("search results ",JSON.stringify(results, null, 2));
-    // Sort results by total price
-    results.sort((a, b) => a.pricing.totalPrice - b.pricing.totalPrice);
 
-    // Return response
     return res.json({
       success: true,
       params: {

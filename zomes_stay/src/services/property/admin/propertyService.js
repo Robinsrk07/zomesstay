@@ -44,8 +44,14 @@ deleteRoomType:(roomTypeId)=>apiService.delete(`${PROPERTY.ROOM_TYPES}/${encodeU
 deleteRoom:(propertyId,roomId)=>apiService.delete(`${PROPERTY.ROOMS}/${encodeURIComponent(propertyId)}/rooms/${encodeURIComponent(roomId)}`),
 deletePropertyType:(propertyTypeId)=>apiService.delete(`${PROPERTY.PROPERTY_TYPE}/${encodeURIComponent(propertyTypeId)}`),
 deleteProperty:(propertyId)=>apiService.delete(`${PROPERTY.PROPERTY}/${encodeURIComponent(propertyId)}`),
-}
 
+getPropertyDetails: (id) => apiService.get(`${PROPERTY.PROPERTY}/${id}`),
+getPropertyAvailability: (id, dates) => apiService.get(`${PROPERTY.PROPERTY}/${id}/availability`, { params: dates }),
+getPropertyRates: (id, dates) => apiService.get(`${PROPERTY.PROPERTY}/${id}/rates`, { params: dates }),
+getPropertyReviews: (id) => apiService.get(`${PROPERTY.PROPERTY}/${id}/reviews`),
+
+}
+ 
 
 
 export default propertyService;

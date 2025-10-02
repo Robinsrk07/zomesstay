@@ -23,7 +23,7 @@ const HostRouter = require('./src/routes/adminRoutes/host.routes');
 const AvailabilityRouter = require('./src/routes/adminRoutes/avalibility.routes');
 const SpecialRateRoute   = require("./src/routes/adminRoutes/specialRate.routes")
 const MealPlanRouter = require('./src/routes/adminRoutes/mealPlan.routes');
-
+const propertyDetailsRoute = require('./src/routes/userRoutes/propertyDetials.routes');
 
 // Enable CORS
 app.use(cors({
@@ -46,8 +46,9 @@ app.use('/', (req, res, next) => {
 app.use('/', adminAuthRouter);
 app.use('/', PropertyRouter);
 app.use('/', HostRouter);
-app.use('/',SpecialRateRoute)
+app.use('/', SpecialRateRoute)
 app.use('/', MealPlanRouter);
+app.use('/', propertyDetailsRoute);
 
 
 

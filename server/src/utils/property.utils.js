@@ -58,6 +58,14 @@ async function fetchAvailableProperties(startDate, endDate, guestNeeds, totalBed
           id: true,
           Occupancy: true,
           extraBedCapacity: true,
+          basePrice: true,
+          roomType: {
+            select:{
+              name:true,
+              status:true,
+              isDeleted:true
+            }
+          },
           rooms: {
             where: {
               id: { in: Array.from(availableRoomIds) },
@@ -65,7 +73,8 @@ async function fetchAvailableProperties(startDate, endDate, guestNeeds, totalBed
               status: 'active'
             },
             select: {
-              id: true
+              id: true,
+              name: true
             }
           }
         }
@@ -202,38 +211,37 @@ function calculateRoomAssignments(properties, guestNeeds, infantsNeedBed, nights
   const results = [];
 
   for (const property of properties) {
-    // Only process properties that have roomTypes
     if (!property.roomTypes?.length) continue;
 
-    console.log("property", JSON.stringify(property, null, 2));
-
-    // Calculate total capacity for the property
+    // Calculate total capacity for each room type
     const totalCapacity = property.roomTypes.reduce((sum, rt) => {
-      
-        return sum + (rt.extraBedCapacity + rt.Occupancy || 0);
+      const roomTypeCapacity = (rt.Occupancy + rt.extraBedCapacity) * rt.rooms.length;
+      console.log('RoomType:', rt.roomType?.name, 
+                  'Base Occupancy:', rt.Occupancy,
+                  'Extra Capacity:', rt.extraBedCapacity,
+                  'Rooms:', rt.rooms.length,
+                  'Total Capacity:', roomTypeCapacity);
+      return sum + roomTypeCapacity;
     }, 0);
 
-    console.log(`Property ID: ${property.id}, Total Capacity: ${totalCapacity}`);
+    console.log(`Property ${property.id} total capacity:`, totalCapacity);
 
-    // Check if property can accommodate guests
     const totalGuests = guestNeeds.adults + guestNeeds.children + 
       (infantsNeedBed ? guestNeeds.infants : 0);
 
     if (totalCapacity >= totalGuests) {
-      results.push({
+      const propertyResult = {
         property: {
-          id: property.id,
-          title: property.title,
+          ...property,
           amenities: property.amenities?.map(a => a.amenity) || [],
           facilities: property.facilities?.map(f => f.facility) || [],
-          safeties: property.safeties?.map(s => s.safety) || [],
-          media: property.media || [],
-          location: property.location
+          safeties: property.safeties?.map(s => s.safety) || []
         },
         totalCapacity,
         availableRooms: property.roomTypes.flatMap(rt => rt.rooms),
         nights
-      });
+      };
+      results.push(propertyResult);
     }
   }
 
@@ -247,7 +255,7 @@ module.exports = {
   fetchAvailableProperties,
   calculateRoomAssignments
 };
-       
+
 
 
 

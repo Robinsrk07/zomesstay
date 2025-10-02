@@ -43,3 +43,6 @@
   margin-left: 20px;
 }
 
+/* hide horizontal scrollbar on mobile */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

@@ -8,4 +8,5 @@ const AvailabilityController = require("../../controllers/adminController/invent
 AvailabilityRoute.get('/properties/:propertyId/availability', AvailabilityController.getAvailability);
 
 
+
 module.exports = AvailabilityRoute;
