@@ -36,7 +36,7 @@ import HostRegisteredUsers from "./pages/Host/HostRegisteredUsers";
 import HostProperties from "./pages/Host/HostProperties";
 import HostPaymentsTransactions from "./pages/Host/HostPayment";
 import HostPromotionsDiscounts from "./pages/Host/HostPromotionsDiscounts";
-import Inventory from "./pages/Host/inventory";
+import Inventory from "./pages/Host/Inventory";
 import MealPlan from "./pages/Host/MealPlan";
 import { SearchProvider } from "./context/SearchContext";
 import 'react-datepicker/dist/react-datepicker.css';
