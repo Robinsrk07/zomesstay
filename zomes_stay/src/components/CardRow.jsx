@@ -83,13 +83,15 @@ export default function CardRow() {
       {loading ? (
         <Loader />
       ) : (
-        // One container that is a horizontal scroller on mobile,
-        // and a grid from sm: and up (unchanged from your layout).
         <div
           className="
-            flex flex-nowrap overflow-x-auto no-scrollbar snap-x snap-mandatory gap-4 px-2
-            sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 sm:gap-4 sm:px-8 sm:overflow-visible
+            flex flex-nowrap overflow-x-auto gap-4 px-4 pb-4
+            sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 sm:gap-6 sm:px-8 sm:overflow-visible
           "
+          style={{
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none'
+          }}
         >
           {properties.map((property, idx) => {
             const propertyDetails = getPropertyDetails(property);
@@ -98,16 +100,14 @@ export default function CardRow() {
                 key={property.id || idx}
                 onClick={() => navigate(`/app/properties/${property.id}`)}
                 className="
-                  flex-none w-[85%] max-w-[22rem] snap-start
-                  sm:w-auto sm:max-w-none sm:flex-initial
+                  flex-none w-[280px] sm:w-full cursor-pointer
+                  sm:flex-initial transition-transform hover:scale-105
                 "
               >
                 <Card {...propertyDetails} bestRated={true} />
               </div>
             );
           })}
-          {/* spacing at end for nicer scroll feel on mobile */}
-          <div className="flex-none w-4 sm:hidden" />
         </div>
       )}
     </div>
