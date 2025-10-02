@@ -52,8 +52,8 @@ const LoginPage = () => {
               <Link to="/signup" className="text-[#004ADD] font-medium">
                 Create now |
               </Link>
-              <Link to="/admin" className="text-[#004ADD] font-medium">
-                admin Login
+              <Link to="/host" className="text-[#004ADD] font-medium">
+                host Login(demo)
               </Link>
               
             </p>
