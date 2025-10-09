@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Calendar, ChevronLeft, ChevronRight, Settings, Filter, Download, Search, Plus, Edit, Eye, BarChart3, TrendingUp, DollarSign, Percent, Save, X, Wrench, Check, Home, Utensils, Target, CalendarDays, IndianRupee, HelpCircle, AlertTriangle, Info } from 'lucide-react';
 import SpecialRateModal from '../../components/SpecialRateModal';
-import {specialRateService,propertyService,inventoryService} from '../../services';
+import {specialRateService,propertyService,inventoryService,specialRateApplicationService,propertyRoomTypeService} from '../../services';
 import { toast } from 'react-toastify';
 
 const PMSInventory = () => {
-  const [propertyId] = useState('8f36d332-f886-45d4-91a9-fabeca6126ca');
+  const [propertyId] = useState('5cb51057-e7e4-4db1-bbf3-0f879f6229d5');
   const [availabilityData, setAvailabilityData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -23,8 +23,84 @@ const PMSInventory = () => {
   const [loadingSpecialRates, setLoadingSpecialRates] = useState(false);
   const [roomTypesMap, setRoomTypesMap] = useState([]);
 
+  console.log("selectedRoomType",roomTypesMap)
 
-  console.log(specialRates)
+  // Add new state for drag selection and special rates
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStartDate, setDragStartDate] = useState(null);
+
+  const [selectedDateRange, setSelectedDateRange] = useState([]);
+
+  console.log("selectedDateRange",selectedDateRange)
+
+  const [showSpecialRateToast, setShowSpecialRateToast] = useState(false);
+  const [appliedSpecialRates, setAppliedSpecialRates] = useState({}); // Store applied rates by date
+  // Add mobile-specific state
+  const [isMobileMultiSelect, setIsMobileMultiSelect] = useState(false);
+  const [mobileSelectedDates, setMobileSelectedDates] = useState([]);
+
+   // Helper function to generate background color class from hex
+  const generateBgColorFromHex = (hexColor) => {
+    // Convert hex to a light background variant
+    // This is a simple approximation - you might want to use a proper color library
+    return 'bg-gray-50'; // Fallback to gray, you can enhance this
+  };
+
+  // Helper function to generate border color class from hex
+  const generateBorderColorFromHex = (hexColor) => {
+    // Convert hex to a border color variant
+    // This is a simple approximation
+    return 'border-gray-200'; // Fallback to gray, you can enhance this
+  };
+
+  // Transform API special rates data to match the format expected by the toast
+  const transformedSpecialRates = specialRates.map((rate) => {
+    // Generate description based on pricing mode and kind
+    let description = '';
+    let type = '';
+    let value = 0;
+    
+    if (rate.pricingMode === 'flat') {
+      description = `Fixed ₹${Number(rate.flatPrice).toLocaleString()}`;
+      type = 'flat';
+      value = rate.flatPrice;
+    } else if (rate.pricingMode === 'percent') {
+      const percentage = rate.percentAdj;
+      if (rate.kind === 'offer') {
+        description = `${percentage}% discount`;
+        type = 'discount';
+      } else {
+        description = `${percentage}% surcharge`;
+        type = 'surcharge';
+      }
+      value = percentage;
+    } else {
+      // Room-specific pricing
+      const roomTypeCount = rate.roomTypeLinks.length;
+      description = `Custom pricing for ${roomTypeCount} room type${roomTypeCount > 1 ? 's' : ''}`;
+      type = rate.kind;
+      value = 0;
+    }
+
+    return {
+      id: rate.id,
+      name: rate.name,
+      type: type,
+      value: value,
+      description: description,
+      kind: rate.kind,
+      color: rate.color,
+      bgColor: generateBgColorFromHex(rate.color),
+      borderColor: generateBorderColorFromHex(rate.color),
+      kind: rate.kind,
+      pricingMode: rate.pricingMode,
+      flatPrice: rate.flatPrice,
+      percentAdj: rate.percentAdj,
+      roomTypeLinks: rate.roomTypeLinks
+    };
+  });
+
+ 
 
   // Meal plan options
   const mealPlans = [
@@ -35,6 +111,22 @@ const PMSInventory = () => {
     { value: 'NO_MEAL', label: 'No Meal Plan', description: 'Room Only' }
   ];
 
+const handleApplySpecialRate = async (rate)=>{
+
+
+}
+
+ const fetchAppliedSpecialRates = useCallback(async () => {
+   try {
+     const response = await specialRateApplicationService.getSpecialRateApplications();
+     const data = response?.data?.data;
+     setAppliedSpecialRates(data);
+   } catch (error) {
+     console.error('Error fetching applied special rates:', error);
+     toast.error('Failed to load applied special rates');
+   }
+ }, []);
+
   // Fetch availability data using service
   const fetchAvailability = useCallback(async (startDate, endDate) => {
     setLoading(true);
@@ -42,9 +134,12 @@ const PMSInventory = () => {
     try {
       // Fetch real data from API
       const response = await inventoryService.getAvailability(propertyId, startDate, endDate);
-      const { data, specialRates, getfinalData } = response.data;
+      const { dataWithSpecialRates } = response.data;
+
       // Use getfinalData for calendar (special rates already applied)
-      const transformedData = transformApiDataToCalendarFormat(getfinalData.data);
+      const transformedData = transformApiDataToCalendarFormat(dataWithSpecialRates);
+
+
       setAvailabilityData({
         calendar: transformedData,
         property: { title: "Zomes Stay Hotel" }
@@ -64,12 +159,26 @@ const PMSInventory = () => {
     }
   }, [selectedRoomType, propertyId]);
 
+  // fetch special rates
+
+  const fetchSpecialRates = useCallback(async () => {
+    try {
+      const response = await specialRateService.getSpecialRates(propertyId);
+      const data = response?.data?.data
+      setSpecialRates(data);
+    } catch (error) {
+      console.error('Error fetching special rates:', error);
+      toast.error('Failed to load special rates');
+    }
+  }, [propertyId]);
+
   const fetchRoomTypesMap = useCallback(async () => {
     try {
-      const response = await propertyService.getRoomTypes(propertyId);
+      const response = await propertyRoomTypeService.getPropertyRoomTypes(propertyId);
       const data = response.data;
+      console.log("roomTypesMap",data)
       if (data) {
-        setRoomTypesMap(data.data);
+        setRoomTypesMap(data);
       } else {
         toast.error('Failed to load room types map');
       }
@@ -80,69 +189,6 @@ const PMSInventory = () => {
   }, [propertyId]);
 
  
-  // Fetch special rates
-  const fetchSpecialRates = useCallback(async () => {
-    setLoadingSpecialRates(true);
-    try {
-      const response = await specialRateService.getSpecialRates(propertyId, {
-        status: 'active',
-        limit: 50
-      });
-      
-      if (response.data.success) {
-        setSpecialRates(response.data.data);
-      } else {
-        toast.error('Failed to load special rates');
-      }
-    } catch (error) {
-      console.error('Error fetching special rates:', error);
-      toast.error('Failed to load special rates');
-    } finally {
-      setLoadingSpecialRates(false);
-    }
-  }, [propertyId]);
-
-  // Delete special rate
-  const handleDeleteSpecialRate = async (rateId, rateName) => {
-    if (!window.confirm(`Are you sure you want to delete "${rateName}"?`)) {
-      return;
-    }
-
-    try {
-      const response = await specialRateService.deleteSpecialRate(rateId);
-      if (response.data.success) {
-        toast.success('Special rate deleted successfully');
-        await fetchSpecialRates();
-        const { start, end } = getDateRange();
-        await fetchAvailability(start, end);
-      } else {
-        toast.error(response.data.message || 'Failed to delete special rate');
-      }
-    } catch (error) {
-      console.error('Error deleting special rate:', error);
-      toast.error('Failed to delete special rate');
-    }
-  };
-
-  // Toggle special rate
-  const handleToggleSpecialRate = async (rateId, rateName, isActive) => {
-    try {
-      const response = await specialRateService.toggleSpecialRate(rateId);
-      if (response.data.success) {
-        toast.success(`Special rate "${rateName}" ${!isActive ? 'enabled' : 'disabled'} successfully`);
-        await fetchSpecialRates();
-        const { start, end } = getDateRange();
-        await fetchAvailability(start, end);
-      } else {
-        toast.error(response.data.message || 'Failed to toggle special rate');
-      }
-    } catch (error) {
-      console.error('Error toggling special rate:', error);
-      toast.error('Failed to toggle special rate');
-    }
-  };
-
-  // Generate date range based on current view
   const getDateRange = useCallback(() => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
@@ -169,122 +215,60 @@ const PMSInventory = () => {
     };
   }, [currentDate, viewType]);
 
-  // Fetch data when component mounts or dependencies change
+
   useEffect(() => {
     const { start, end } = getDateRange();
     fetchAvailability(start, end);
-    fetchSpecialRates();
     fetchRoomTypesMap();
-  }, [fetchAvailability, getDateRange, fetchSpecialRates, fetchRoomTypesMap]);
+    fetchSpecialRates();
+  }, [fetchAvailability, getDateRange, fetchRoomTypesMap, fetchSpecialRates]);
 
-  // Generate mock data for date range
-  const generateMockDataForDateRange = (startDate, endDate) => {
-    const data = [];
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      const dateStr = d.toISOString().split('T')[0];
-      
-      // Vary availability for demo purposes
-      const isDuelex26 = dateStr === '2025-09-26';
-      
-      data.push({
-        date: dateStr,
-        RoomType: [
-          {
-            Type: "duelex room",
-            TotalnoofRooms: 2,
-            AvailableRooms: isDuelex26 ? 1 : 2,
-            BookedRooms: isDuelex26 ? 1 : 0,
-            UnderMaintenance: 0,
-            Rates: "3199"
-          },
-          {
-            Type: "suite room",
-            TotalnoofRooms: 3,
-            AvailableRooms: 3,
-            BookedRooms: 0,
-            UnderMaintenance: 0,
-            Rates: "2499"
-          }
-        ]
-      });
-    }
-    
-    return data;
-  };
-  
-  // Generate demo rooms for a room type
-  const generateDemoRoomsForType = (roomType, totalRooms, availableRooms, bookedRooms) => {
-    const rooms = [];
-    const roomPrefix = roomType === 'duelex room' ? 'DLX' : 'STE';
-    
-    for (let i = 1; i <= totalRooms; i++) {
-      const roomNumber = `${roomPrefix}${String(i).padStart(3, '0')}`;
-      const isBooked = i <= bookedRooms;
-      
-      rooms.push({
-        id: `${roomType.replace(' ', '_')}_${i}`,
-        name: `${roomType} ${roomNumber}`,
-        code: roomNumber,
-        status: isBooked ? 'occupied' : 'available',
-        price: roomType === 'duelex room' ? '3199' : '2499',
-        minNights: 1,
-        maxOccupancy: roomType === 'duelex room' ? 4 : 2,
-        amenities: roomType === 'duelex room' 
-          ? ['King Bed', 'Living Area', 'Kitchenette', 'Balcony', 'WiFi', 'AC']
-          : ['Queen Bed', 'Work Desk', 'Mini Bar', 'WiFi', 'AC'],
-        guestInfo: isBooked ? {
-          guestName: `Guest ${i}`,
-          checkIn: '2025-09-26',
-          checkOut: '2025-09-28',
-          adults: 2,
-          children: 0
-        } : null
-      });
-    }
-    
-    return rooms;
-  };
-  
-  // Transform new API format to calendar format (with special rate support)
+ 
   const transformApiDataToCalendarFormat = (apiData) => {
     const calendarData = {};
+
     apiData.forEach(dayData => {
       const dateKey = dayData.date;
       calendarData[dateKey] = {};
       dayData.RoomType.forEach(roomType => {
-        // Find the rate for this date (should be only one)
         const rate = roomType.Rate && roomType.Rate.length > 0 ? roomType.Rate[0] : null;
+        
+        // Handle special rate information
+        const hasSpecialRate = roomType.hasSpecialRate;
+        const appliedSpecialRates = roomType.appliedSpecialRates || [];
+        
+        // Get the primary special rate (first one if multiple)
+        const primarySpecialRate = appliedSpecialRates.length > 0 ? appliedSpecialRates[0] : null;
+        
+        // Determine final price and original price
+        let finalPrice = rate ? rate.price : roomType.Rates;
+        let originalPrice = null;
+        let specialRateInfo = null;
+        
+        if (hasSpecialRate && rate) {
+          finalPrice = rate.price;
+          originalPrice = rate.originalPrice;
+          specialRateInfo = rate.specialRate;
+        }
+        
         calendarData[dateKey][roomType.Type] = {
           totalRooms: roomType.TotalnoofRooms,
           availableRooms: roomType.AvailableRooms,
           bookedRooms: roomType.BookedRooms,
           underMaintenance: roomType.UnderMaintenance,
-          basePrice: rate ? rate.price : roomType.Rates,
-          hasSpecialRate: rate ? rate.hasSpecialRate : false,
-          specialRateName: rate && rate.hasSpecialRate ? rate.specialRateName : null,
-          originalPrice: rate && rate.hasSpecialRate ? rate.originalPrice : null,
-          finalPrice: rate && rate.hasSpecialRate ? rate.finalPrice : null,
-          specialRateType: rate && rate.hasSpecialRate ? rate.specialRateType : null,
-          specialRateKind: rate && rate.hasSpecialRate ? rate.specialRateKind : null,
-          discountAmount: rate && rate.hasSpecialRate ? rate.discountAmount : null,
-          discount: rate && rate.hasSpecialRate ? rate.discount : null,
-          specialRateId: rate && rate.hasSpecialRate ? rate.specialRateId : null,
-          isGlobalOffer: rate && rate.hasSpecialRate ? rate.isGlobalOffer : null,
+          basePrice: originalPrice || finalPrice,
+          finalPrice: finalPrice,
+          originalPrice: originalPrice,
           IsRoomTypeActive: true,
-          // Use actual room data from API
+          hasSpecialRate: hasSpecialRate,
+          specialRateInfo: specialRateInfo,
+          appliedSpecialRates: appliedSpecialRates,
+          primarySpecialRate: primarySpecialRate,
           rooms: roomType.Rooms ? roomType.Rooms.map(room => ({
             id: room.roomId,
             name: room.roomName,
-            code: room.roomId,
             status: room.Avilability && room.Avilability.length > 0 ? room.Avilability[0].status : 'available',
-            price: rate ? (rate.hasSpecialRate ? rate.finalPrice : rate.price) : '',
-            minNights: 1, // Placeholder, replace if available
-            maxOccupancy: 2, // Placeholder, replace if available
-            amenities: [], // Placeholder, replace if available
-            guestInfo: null // Placeholder, replace if available
+            price: finalPrice,
           })) : []
         };
       });
@@ -292,7 +276,6 @@ const PMSInventory = () => {
     return calendarData;
   };
   
-  // Extract room types from transformed data
   const getRoomTypesFromTransformedData = (calendarData) => {
     if (!calendarData) return [];
     
@@ -414,10 +397,287 @@ const PMSInventory = () => {
     }
   };
 
+  // Enhanced date click handler for single and mobile multi-select
   const handleDateClick = (dayInfo) => {
     if (dayInfo && !dayInfo.isPast) {
-      setSelectedDate(dayInfo);
+      if (isMobileMultiSelect) {
+        // Mobile multi-select mode
+        const isAlreadySelected = mobileSelectedDates.includes(dayInfo.dateKey);
+        if (isAlreadySelected) {
+          setMobileSelectedDates(prev => prev.filter(date => date !== dayInfo.dateKey));
+        } else {
+          setMobileSelectedDates(prev => [...prev, dayInfo.dateKey]);
+        }
+      } else if (selectedDateRange.length <= 1 && !isDragging) {
+        // Single date selection - show room details modal
+        setSelectedDate(dayInfo);
+      }
     }
+    
+  };
+
+  // Handle mouse down to start drag selection
+  const handleMouseDown = (dayInfo, e) => {
+    if (dayInfo && !dayInfo.isPast && !isMobileMultiSelect) {
+      e.preventDefault();
+      setIsDragging(true);
+      setDragStartDate(dayInfo.dateKey);
+      setSelectedDateRange([dayInfo.dateKey]);
+      setShowSpecialRateToast(false);
+    }
+  };
+
+  // Handle mouse enter during drag
+  const handleMouseEnter = (dayInfo) => {
+    if (isDragging && dayInfo && !dayInfo.isPast) {
+      const start = new Date(dragStartDate);
+      const end = new Date(dayInfo.dateKey);
+      const range = [];
+      
+      // Determine which date is earlier
+      const [startDate, endDate] = start <= end ? [start, end] : [end, start];
+      
+      // Generate all dates in range
+      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        range.push(d.toISOString().split('T')[0]);
+      }
+      
+      setSelectedDateRange(range);
+    }
+  };
+
+  // Handle mouse up to finish drag selection
+  const handleMouseUp = () => {
+    if (isDragging) {
+      setIsDragging(false);
+      if (selectedDateRange.length > 1) {
+        setShowSpecialRateToast(true);
+        // Auto-hide toast after 10 seconds
+        setTimeout(() => setShowSpecialRateToast(false), 10000);
+      }
+    }
+  };
+
+  // Toggle mobile multi-select mode
+  const toggleMobileMultiSelect = () => {
+    setIsMobileMultiSelect(!isMobileMultiSelect);
+    if (!isMobileMultiSelect) {
+      // Entering multi-select mode
+      setMobileSelectedDates([]);
+      setSelectedDateRange([]);
+    } else {
+      // Exiting multi-select mode
+      if (mobileSelectedDates.length > 0) {
+        setSelectedDateRange(mobileSelectedDates.sort());
+        setShowSpecialRateToast(true);
+        setTimeout(() => setShowSpecialRateToast(false), 10000);
+      }
+      setMobileSelectedDates([]);
+    }
+  };
+
+  // Apply special rate to selected dates
+  const applySpecialRate = async (rate) => {
+    const datesToApply = selectedDateRange.length > 0 ? selectedDateRange : [selectedDate?.dateKey].filter(Boolean);
+    
+    if (datesToApply.length === 0) return;
+
+    try {
+      // Extract dateFrom and dateTo from the selected dates array
+      const sortedDates = datesToApply.sort(); // Ensure dates are in chronological order
+      const dateFrom = sortedDates[0]; // First date (earliest)
+      const dateTo = sortedDates[sortedDates.length - 1]; // Last date (latest)
+
+      // Format dates to DD-MM-YYYY as expected by your backend
+      const formatDateToDDMMYYYY = (dateString) => {
+        const date = new Date(dateString);
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}-${month}-${year}`;
+      };
+
+      const formattedDateFrom = formatDateToDDMMYYYY(dateFrom);
+      // For single day applications, use the same date for dateTo
+      const formattedDateTo = formatDateToDDMMYYYY(dateTo);
+
+      // Get all property room type IDs (you can get this from roomTypesMap or availabilityData)
+      const allPropertyRoomTypeIds = roomTypesMap.map(roomType => roomType.id);
+      const payload = {
+        specialRateId: rate.id,
+        propertyId: propertyId,
+        propertyRoomTypeId: JSON.stringify(allPropertyRoomTypeIds), // Send as JSON string array
+        dateFrom: formattedDateFrom,
+        dateTo: formattedDateTo
+      };
+
+      console.log('Applying special rate with payload:', payload);
+      console.log(`Single day application: ${dateFrom === dateTo ? 'Yes' : 'No'}`);
+
+      // Call the API
+      const response = await specialRateApplicationService.createSpecialRateApplication(payload);
+
+      if (response.data.success) {
+        // Update local state immediately for visual feedback
+        const newAppliedRates = { ...appliedSpecialRates };
+        datesToApply.forEach(date => {
+          newAppliedRates[date] = {
+            rateId: rate.id,
+            rateName: rate.name,
+            rateType: rate.type,
+            rateValue: rate.value,
+            color: rate.color,
+            bgColor: rate.bgColor,
+            borderColor: rate.borderColor,
+            appliedAt: new Date().toISOString()
+          };
+        });
+        
+        setAppliedSpecialRates(newAppliedRates);
+        setShowSpecialRateToast(false);
+        setSelectedDateRange([]);
+        setSelectedDate(null);
+        setMobileSelectedDates([]);
+        setIsMobileMultiSelect(false);
+        
+        // Show appropriate success message
+        const successMessage = dateFrom === dateTo 
+          ? `Applied "${rate.name}" for ${formattedDateFrom}` 
+          : `Applied "${rate.name}" from ${formattedDateFrom} to ${formattedDateTo} (${datesToApply.length} days)`;
+        
+        toast.success(successMessage);
+      } else {
+        throw new Error(response.data.message || 'Failed to apply special rate');
+      }
+      
+    } catch (error) {
+      console.error('Error applying special rate:', error);
+      toast.error(error.response?.data?.message || 'Failed to apply special rate. Please try again.');
+    }
+  };
+
+  // Helper: get currently selected date keys (range or single)
+  const getSelectedDateKeys = () => {
+    if (selectedDateRange.length > 0) return [...selectedDateRange];
+    if (selectedDate?.dateKey) return [selectedDate.dateKey];
+    return [];
+  };
+
+  // Helper: gather unique applied specialRate ids across the current selection
+  const getSelectedAppliedSpecialIds = () => {
+    const dates = getSelectedDateKeys();
+    const idSet = new Set();
+    dates.forEach((d) => {
+      const rt = availabilityData?.calendar?.[d]?.[selectedRoomType];
+      const list = Array.isArray(rt?.appliedSpecialRates) ? rt.appliedSpecialRates : [];
+      list.forEach((x) => { if (x?.id) idSet.add(x.id); });
+    });
+    return Array.from(idSet);
+  };
+
+  // Detect if any selected date already has a special rate (from API or local applied map)
+  const selectionHasExistingSpecial = (() => {
+    const dates = getSelectedDateKeys();
+    if (!dates.length) return false;
+    return dates.some((d) => {
+      if (appliedSpecialRates[d]) return true;
+      const day = availabilityData?.calendar?.[d];
+      const rt = day?.[selectedRoomType];
+      return Boolean(rt?.hasSpecialRate);
+    });
+  })();
+
+  // Stubs: remove/edit actions (no API calls yet)
+  const handleRemoveSpecialRate = async(specialRateIds) => {
+    const dates = getSelectedDateKeys();
+    const ids = Array.isArray(specialRateIds) ? specialRateIds : (specialRateIds ? [specialRateIds] : []);
+    try{ 
+   const response = await specialRateApplicationService.deleteSpecialRateApplication(ids);
+   if(response.data.success){
+     toast.success('Special rate removed successfully');
+     fetchAppliedSpecialRates();
+     // Optionally, refresh availability to reflect changes
+     const { start, end } = getDateRange();
+     fetchAvailability(start, end);
+   }else{
+     throw new Error(response.data.message || 'Failed to remove special rate');
+   }
+    }catch(error){
+      console.error('Error removing special rate:', error);
+    }
+
+    console.log("specialRateIds",ids)
+    console.log('Remove special rate requested', { dates, roomType: selectedRoomType, specialRateIds: ids });
+  };
+
+  const handleEditSpecialRate = (specialRateId) => {
+    const dates = getSelectedDateKeys();
+    const id = Array.isArray(specialRateId) ? specialRateId[0] : specialRateId;
+    // Placeholder only; integrate API later
+    // eslint-disable-next-line no-console
+    console.log('Edit special rate requested', { dates, roomType: selectedRoomType, specialRateId: id });
+    toast.info('Edit special rate action queued (implement API next).');
+  };
+
+  // Clear selection
+  const clearSelection = () => {
+    setSelectedDateRange([]);
+    setShowSpecialRateToast(false);
+    setIsDragging(false);
+    setMobileSelectedDates([]);
+    setIsMobileMultiSelect(false);
+  };
+
+  // Get the color for a date based on applied special rate
+  const getDateColors = (dateKey, dayInfo) => {
+    const appliedRate = appliedSpecialRates[dateKey];
+    const isSelected = selectedDateRange.includes(dateKey) || mobileSelectedDates.includes(dateKey);
+    
+    let base = 'min-h-14 sm:min-h-20 p-1 sm:p-1.5 transition-all duration-200 relative';
+    let color = 'bg-white';
+    let ring = '';
+    
+    if (dayInfo.isPast) {
+      color = 'bg-gray-50 opacity-60 pointer-events-none';
+    } else if (isSelected) {
+      ring = 'ring-2 ring-blue-400 ring-opacity-75';
+      color = 'bg-blue-100';
+    } else if (appliedRate) {
+      color = appliedRate.bgColor;
+      ring = `ring-1 ${appliedRate.borderColor.replace('border-', 'ring-')}`;
+    } else if (dayInfo.data && dayInfo.data[selectedRoomType]?.hasSpecialRate) {
+      // Use API-provided special rate styling
+      const primaryRate = dayInfo.data[selectedRoomType].primarySpecialRate;
+      const specialRateInfo = dayInfo.data[selectedRoomType].specialRateInfo;
+      
+      if (primaryRate && primaryRate.color) {
+        // Use the color from applied special rates
+        color = `bg-opacity-20`;
+        ring = 'ring-2 ring-opacity-60';
+        // We'll apply the actual color via inline styles
+      } else if (specialRateInfo && specialRateInfo.color) {
+        // Use the color from special rate info
+        color = `bg-opacity-20`;
+        ring = 'ring-2 ring-opacity-60';
+      } else {
+        // Fallback colors based on pricing mode or type
+        if (specialRateInfo?.pricingMode === 'flat') {
+          color = 'bg-green-50';
+          ring = 'ring-1 ring-green-200';
+        } else {
+          color = 'bg-blue-50';
+          ring = 'ring-1 ring-blue-200';
+        }
+      }
+    } else if (dayInfo.isToday) {
+      color = 'bg-blue-50';
+      ring = 'ring-2 ring-blue-300';
+    } else if (dayInfo.isWeekend) {
+      color = 'bg-orange-50';
+    }
+    
+    let cursor = !dayInfo.isPast ? 'cursor-pointer' : '';
+    return `${base} ${color} ${ring} ${cursor}`;
   };
 
   // Room management functions
@@ -436,7 +696,6 @@ const PMSInventory = () => {
 
   const savePriceEdit = (roomId, dateKey) => {
     // Here you would make an API call to update the price
-    console.log('Saving price:', editingPrice, 'for room:', roomId, 'on date:', dateKey);
     setEditingRoom(null);
     setEditingPrice('');
   };
@@ -447,6 +706,7 @@ const PMSInventory = () => {
   };
 
   const calendar = generateCalendar();
+
   const roomTypes = getRoomTypes();
   const summary = calculateSummary();
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -542,6 +802,38 @@ const PMSInventory = () => {
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Mobile Multi-Select Controls */}
+      <div className="sm:hidden px-4 py-2 bg-white border-b border-gray-200">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={toggleMobileMultiSelect}
+              className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                isMobileMultiSelect
+                  ? 'bg-violet-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <Target className="h-4 w-4 mr-2" />
+              {isMobileMultiSelect ? 'Done Selecting' : 'Multi-Select'}
+            </button>
+            {isMobileMultiSelect && mobileSelectedDates.length > 0 && (
+              <span className="text-sm text-gray-600">
+                {mobileSelectedDates.length} selected
+              </span>
+            )}
+          </div>
+          {(isMobileMultiSelect || mobileSelectedDates.length > 0) && (
+            <button
+              onClick={clearSelection}
+              className="text-sm text-red-600 hover:text-red-800"
+            >
+              Clear All
+            </button>
+          )}
         </div>
       </div>
 
@@ -778,6 +1070,55 @@ const PMSInventory = () => {
           {/* Calendar Grid */}
           {!loading && !error && availabilityData && (
             <div className="p-2 sm:p-4">
+              {/* Instructions */}
+              <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-start space-x-2">
+                  <Info className="h-4 w-4 text-blue-600 mt-0.5" />
+                  <div className="text-sm text-blue-800">
+                    <div className="hidden sm:block">
+                      <strong>Desktop:</strong> Click for room details • Drag to select multiple dates for special rates
+                    </div>
+                    <div className="sm:hidden">
+                      <strong>Mobile:</strong> Tap for room details • Use "Multi-Select" button for multiple dates
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Selection Info */}
+              {(selectedDateRange.length > 0 || mobileSelectedDates.length > 0) && (
+                <div className="mb-4 p-3 bg-green-50 rounded-lg border border-green-200">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-green-800">
+                      <strong>
+                        {selectedDateRange.length || mobileSelectedDates.length} date{(selectedDateRange.length || mobileSelectedDates.length) > 1 ? 's' : ''} selected
+                      </strong>
+                      {isMobileMultiSelect ? (
+                        <span> - Tap "Done Selecting" to apply special rates</span>
+                      ) : (
+                        <span> - Drag completed! Use the popup to apply special rates</span>
+                      )}
+                    </div>
+                    <button
+                      onClick={clearSelection}
+                      className="text-green-600 hover:text-green-800 text-sm font-medium"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Mobile Multi-Select Status */}
+              {isMobileMultiSelect && (
+                <div className="mb-4 p-3 bg-violet-50 rounded-lg border border-violet-200 sm:hidden">
+                  <div className="text-sm text-violet-800">
+                    <strong>Multi-Select Mode:</strong> Tap dates to select/deselect • 
+                    {mobileSelectedDates.length > 0 ? ` ${mobileSelectedDates.length} dates selected` : ' No dates selected'}
+                  </div>
+                </div>
+              )}
+
               {/* Week Headers */}
               <div className="grid grid-cols-7 gap-px mb-2">
                 {weekDays.map((day) => (
@@ -788,110 +1129,206 @@ const PMSInventory = () => {
                 ))}
               </div>
 
-              {/* Calendar Days */}
-              <div className="grid grid-cols-7 gap-px bg-gray-200">
-                {calendar.map((dayInfo, index) => (
-                  <div
-                    key={index}
-                    onClick={() => handleDateClick(dayInfo)}
-                    className={(() => {
-  if (!dayInfo) return 'min-h-20 sm:min-h-28 bg-gray-50 p-2';
-  let base = 'min-h-20 sm:min-h-28 p-2 transition-all duration-200';
-  let color = 'bg-white';
-  let ring = '';
-  if (dayInfo.isPast) {
-    color = 'bg-gray-50 opacity-60 pointer-events-none';
-  } else if (dayInfo.data && dayInfo.data[selectedRoomType]?.hasSpecialRate) {
-    const kind = dayInfo.data[selectedRoomType].specialRateKind;
-    if (kind === 'offer') {
-      color = 'bg-violet-50';
-      ring = 'ring-1 ring-violet-200';
-    } else if (kind === 'peak') {
-      color = 'bg-amber-50';
-      ring = 'ring-1 ring-amber-200';
-    } else if (kind === 'custom') {
-      color = 'bg-slate-50';
-      ring = 'ring-1 ring-slate-200';
-    }
-  } else if (dayInfo.isToday) {
-    color = 'bg-blue-50';
-    ring = 'ring-2 ring-blue-300';
-  } else if (dayInfo.isWeekend) {
-    color = 'bg-orange-50';
-  }
-  let cursor = !dayInfo.isPast ? 'cursor-pointer' : '';
-  return `${base} ${color} ${ring} ${cursor}`;
-})()}
-                  >
-                    {dayInfo && (
-                      <div className="h-full flex flex-col">
-                        <div className={`text-sm font-semibold mb-2 ${
-                          dayInfo.isPast ? 'text-gray-400' : 
-                          dayInfo.isToday ? 'text-blue-600' :
-                          dayInfo.isWeekend ? 'text-orange-600' :
-                          'text-gray-900'
-                        }`}>
-                          {dayInfo.day}
-                        </div>
-
-                        <div className="flex-1 space-y-1">
-                          {dayInfo.data[selectedRoomType] && (
-                            <div className={`p-2 rounded-lg text-xs font-medium transition-colors ${
-                              dayInfo.data[selectedRoomType].IsRoomTypeActive 
-                                ? dayInfo.data[selectedRoomType].availableRooms > 0
-                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                                  : 'bg-red-100 text-red-800 border border-red-200'
-                                : 'bg-gray-100 text-gray-600 border border-gray-200'
-                            }`}>
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-1">
-                                  <div className={`w-2 h-2 rounded-full ${
-                                    dayInfo.data[selectedRoomType].availableRooms > 0 ? 'bg-emerald-500' : 'bg-red-500'
-                                  }`}></div>
-                                  <span className="font-semibold">
-                                    {dayInfo.data[selectedRoomType].availableRooms}
-                                  </span>
-                                  <span className="text-gray-600">rooms</span>
-                                </div>
-                              </div>
-                              {dayInfo.data[selectedRoomType].hasSpecialRate ? (() => {
-  const kind = dayInfo.data[selectedRoomType].specialRateKind;
-  let badgeClass = 'bg-gray-200 text-gray-800';
-  let priceClass = 'text-green-700';
-  let originalClass = 'text-gray-500';
-  if (kind === 'offer') {
-    badgeClass = 'bg-violet-100 text-violet-800';
-    priceClass = 'text-green-700';
-    originalClass = 'text-violet-700';
-  } else if (kind === 'peak') {
-    badgeClass = 'bg-orange-100 text-orange-800';
-    priceClass = 'text-orange-700';
-    originalClass = 'text-orange-700';
-  }
-  return (
-    <div className="mt-1 text-center">
-      <span className={`font-bold text-sm line-through mr-1 ${originalClass}`}>₹{Number(dayInfo.data[selectedRoomType].originalPrice).toLocaleString()}</span>
-      <span className={`font-bold text-sm ${priceClass}`}>₹{Number(dayInfo.data[selectedRoomType].finalPrice).toLocaleString()}</span>
-      <span className={`ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-xs ${badgeClass}`}>
-        {dayInfo.data[selectedRoomType].specialRateName}
-      </span>
-    </div>
-  );
-})() : (
-  dayInfo.data[selectedRoomType].basePrice && (
-    <div className="mt-1 text-center">
-      <span className="font-bold text-sm">₹{Number(dayInfo.data[selectedRoomType].basePrice).toLocaleString()}</span>
-    </div>
-  )
-)}
+              {/* Calendar Days with Enhanced Interaction */}
+              <div 
+                className="grid grid-cols-7 gap-px bg-gray-200 select-none"
+                onMouseLeave={() => {
+                  if (isDragging) {
+                    setIsDragging(false);
+                  }
+                }}
+              >
+                {calendar.map((dayInfo, index) => {
+                  const appliedRate = dayInfo ? appliedSpecialRates[dayInfo.dateKey] : null;
+                  const isSelected = selectedDateRange.includes(dayInfo?.dateKey) || 
+                                   mobileSelectedDates.includes(dayInfo?.dateKey);
+                  
+                  // Get special rate styling information
+                  let specialRateColor = null;
+                  let hasApiSpecialRate = false;
+                  
+                  if (dayInfo?.data?.[selectedRoomType]?.hasSpecialRate) {
+                    hasApiSpecialRate = true;
+                    const primaryRate = dayInfo.data[selectedRoomType].primarySpecialRate;
+                    const specialRateInfo = dayInfo.data[selectedRoomType].specialRateInfo;
+                    
+                    specialRateColor = primaryRate?.color || specialRateInfo?.color;
+                  }
+                  
+                  // Create inline styles for special rate colors
+                  let inlineStyles = {};
+                  if (hasApiSpecialRate && specialRateColor && !isSelected && !appliedRate) {
+                    inlineStyles = {
+                      backgroundColor: `${specialRateColor}15`, // Light background
+                      borderColor: specialRateColor,
+                      borderWidth: '2px',
+                      borderStyle: 'solid',
+                      borderRadius: '8px'
+                    };
+                  }
+                  
+                  return (
+                    <div
+                      key={index}
+                      onMouseDown={(e) => !isMobileMultiSelect && handleMouseDown(dayInfo, e)}
+                      onMouseEnter={() => !isMobileMultiSelect && handleMouseEnter(dayInfo)}
+                      onMouseUp={() => !isMobileMultiSelect && handleMouseUp()}
+                      onClick={() => handleDateClick(dayInfo)}
+                      className={dayInfo ? getDateColors(dayInfo.dateKey, dayInfo) : 'min-h-20 sm:min-h-28 bg-gray-50 p-2'}
+                      style={inlineStyles}
+                    >
+                      {dayInfo && (
+                        <div className="h-full flex flex-col">
+                          {/* Applied Rate Indicator */}
+                          {appliedRate && (
+                            <div className="absolute top-1 right-1">
+                              <div 
+                                className="w-2 h-2 rounded-full border border-white shadow-sm"
+                                style={{ backgroundColor: appliedRate.color }}
+                                title={`Applied Rate: ${appliedRate.rateName}`}
+                              ></div>
                             </div>
                           )}
+                          
+                          {/* Special Rate from API Indicator */}
+                          {hasApiSpecialRate && !appliedRate && (
+                            <div className="absolute top-1 right-1">
+                              <div 
+                                className="w-2 h-2 rounded-full border border-white shadow-sm"
+                                style={{ backgroundColor: specialRateColor }}
+                                title={`Special Rate: ${dayInfo.data[selectedRoomType].primarySpecialRate?.name || dayInfo.data[selectedRoomType].specialRateInfo?.name}`}
+                              ></div>
+                            </div>
+                          )}
+                          
+                          {/* Selection Indicator */}
+                          {isSelected && (
+                            <div className="absolute top-1 left-1">
+                              <div className="w-2 h-2 bg-blue-600 rounded-full shadow-sm"></div>
+                            </div>
+                          )}
+
+                          {/* Mobile Multi-Select Indicator */}
+                          {isMobileMultiSelect && mobileSelectedDates.includes(dayInfo.dateKey) && (
+                            <div className="absolute inset-0 bg-blue-500 bg-opacity-20 rounded flex items-center justify-center">
+                              <Check className="h-4 w-4 text-blue-600" />
+                            </div>
+                          )}
+
+                          <div className={`text-sm font-semibold mb-2 ${
+                            dayInfo.isPast ? 'text-gray-400' : 
+                            dayInfo.isToday ? 'text-blue-600' :
+                            dayInfo.isWeekend ? 'text-orange-600' :
+                            'text-gray-900'
+                          }`}>
+                            {dayInfo.day}
+                          </div>
+
+                          <div className="flex-1 space-y-1">
+                            {dayInfo.data[selectedRoomType] && (
+                              <div className={`p-2 rounded-lg text-xs font-medium transition-colors ${
+                                dayInfo.data[selectedRoomType].IsRoomTypeActive 
+                                  ? dayInfo.data[selectedRoomType].availableRooms > 0
+                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                    : 'bg-red-100 text-red-800 border border-red-200'
+                                  : 'bg-gray-100 text-gray-600 border border-gray-200'
+                              }`}>
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center space-x-1">
+                                    <div className={`w-2 h-2 rounded-full ${
+                                      dayInfo.data[selectedRoomType].availableRooms > 0 ? 'bg-emerald-500' : 'bg-red-500'
+                                    }`}></div>
+                                    <span className="font-semibold">
+                                      {dayInfo.data[selectedRoomType].availableRooms}
+                                    </span>
+                                    <span className="text-gray-600">rooms</span>
+                                  </div>
+                                </div>
+
+                                {/* Enhanced Price Display with Special Rate */}
+                                <div className="mt-1 text-center">
+                                  {appliedRate ? (
+                                    <div>
+                                      <span className="font-bold text-sm" style={{ color: appliedRate.color }}>
+                                        {appliedRate.rateType === 'flat' 
+                                          ? `₹${Number(appliedRate.rateValue).toLocaleString()}`
+                                          : `${appliedRate.rateType === 'discount' ? '-' : '+'}${appliedRate.rateValue}%`
+                                        }
+                                      </span>
+                                      <div className="text-xs mt-1" style={{ color: appliedRate.color }}>
+                                        {appliedRate.rateName}
+                                      </div>
+                                    </div>
+                                  ) : dayInfo.data[selectedRoomType].hasSpecialRate ? (
+                                    <div>
+                                      {/* Show original price with strikethrough if different from final price */}
+                                      {dayInfo.data[selectedRoomType].originalPrice && 
+                                       dayInfo.data[selectedRoomType].originalPrice !== dayInfo.data[selectedRoomType].finalPrice && (
+                                        <div className="text-xs text-gray-500 line-through">
+                                          ₹{Number(dayInfo.data[selectedRoomType].originalPrice).toLocaleString()}
+                                        </div>
+                                      )}
+                                      
+                                      {/* Final price with special rate styling */}
+                                      <div 
+                                        className="font-bold text-sm"
+                                        style={{ color: specialRateColor || '#059669' }}
+                                      >
+                                        ₹{Number(dayInfo.data[selectedRoomType].finalPrice).toLocaleString()}
+                                      </div>
+                                      
+                                      {/* Special rate name */}
+                                      <div 
+                                        className="text-xs mt-1 truncate"
+                                        style={{ color: specialRateColor || '#7C3AED' }}
+                                        title={dayInfo.data[selectedRoomType].primarySpecialRate?.name || dayInfo.data[selectedRoomType].specialRateInfo?.name}
+                                      >
+                                        {dayInfo.data[selectedRoomType].primarySpecialRate?.name || 
+                                         dayInfo.data[selectedRoomType].specialRateInfo?.name || 
+                                         'Special Rate'}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    /* Regular price */
+                                    dayInfo.data[selectedRoomType].basePrice && (
+                                      <span className="font-bold text-sm">
+                                        ₹{Number(dayInfo.data[selectedRoomType].basePrice).toLocaleString()}
+                                      </span>
+                                    )
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      )}
+                    </div>
+                  );
+                })}
               </div>
+
+              {/* Applied Special Rates Legend */}
+              {Object.keys(appliedSpecialRates).length > 0 && (
+                <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <h4 className="text-sm font-medium text-gray-900 mb-2">Applied Special Rates:</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {Array.from(new Set(Object.values(appliedSpecialRates).map(rate => rate.rateId))).map(rateId => {
+                      const rate = Object.values(appliedSpecialRates).find(r => r.rateId === rateId);
+                      const count = Object.values(appliedSpecialRates).filter(r => r.rateId === rateId).length;
+                      return (
+                        <div key={rateId} className="flex items-center space-x-2 text-xs">
+                          <div 
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: rate.color }}
+                          ></div>
+                          <span className="font-medium">{rate.rateName}</span>
+                          <span className="text-gray-500">({count} dates)</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -903,20 +1340,63 @@ const PMSInventory = () => {
           <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto shadow-xl">
             <div className="px-4 sm:px-6 py-4 border-b border-gray-200 sticky top-0 bg-white">
               <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  {selectedDate.date.toLocaleDateString('en-US', { 
-                    weekday: 'long', 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric' 
-                  })}
-                </h3>
-                <button
-                  onClick={() => setSelectedDate(null)}
-                  className="text-gray-400 hover:text-gray-600 p-1 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <X className="h-6 w-6" />
-                </button>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    {selectedDate.date.toLocaleDateString('en-US', { 
+                      weekday: 'long', 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    })}
+                  </h3>
+                </div>
+                <div className="flex items-center space-x-2">
+                  {/* If selected date has existing special(s), show quick actions */}
+                  {availabilityData?.calendar?.[selectedDate.dateKey]?.[selectedRoomType]?.hasSpecialRate && (
+                    <div className="hidden sm:flex items-center gap-2 mr-2">
+                      {(() => {
+                        const rt = availabilityData?.calendar?.[selectedDate.dateKey]?.[selectedRoomType];
+                        const ids = Array.isArray(rt?.appliedSpecialRates)
+                          ? rt.appliedSpecialRates.map(x => x?.id).filter(Boolean)
+                          : [];
+                        const primaryId = ids.length > 0 ? ids[0] : null;
+                        return (
+                          <>
+                            <button
+                              onClick={() => handleRemoveSpecialRate(ids)}
+                              className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 transition-colors"
+                            >
+                              Remove special rate
+                            </button>
+                            <button
+                              onClick={() => handleEditSpecialRate(primaryId)}
+                              className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 transition-colors"
+                            >
+                              Edit special rate
+                            </button>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
+                  {/* Single Date Special Rate Button */}
+                  <button
+                    onClick={() => {
+                      setSelectedDateRange([selectedDate.dateKey]);
+                      setShowSpecialRateToast(true);
+                    }}
+                    className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md bg-violet-600 text-white hover:bg-violet-700 transition-colors"
+                  >
+                    <Target className="h-4 w-4 mr-1" />
+                    Apply Special Rate
+                  </button>
+                  <button
+                    onClick={() => setSelectedDate(null)}
+                    className="text-gray-400 hover:text-gray-600 p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <X className="h-6 w-6" />
+                  </button>
+                </div>
               </div>
             </div>
             
@@ -1131,6 +1611,92 @@ const PMSInventory = () => {
         }}
 
       />
+
+      {/* Special Rate Selection Toast */}
+      {showSpecialRateToast && (selectedDateRange.length > 0 || mobileSelectedDates.length > 0) && (
+        <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-right duration-300">
+          <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-4 max-w-sm">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center space-x-2">
+                <Target className="h-5 w-5 text-violet-600" />
+                <h3 className="font-medium text-gray-900">Apply Special Rate</h3>
+              </div>
+              <button
+                onClick={clearSelection}
+                className="text-gray-400 hover:text-gray-600 p-1"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            
+            <p className="text-sm text-gray-600 mb-3">
+              {selectedDateRange.length || mobileSelectedDates.length} date{(selectedDateRange.length || mobileSelectedDates.length) > 1 ? 's' : ''} selected
+            </p>
+            
+                {selectionHasExistingSpecial && (
+                  <div className="mb-3 p-2 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-xs">
+                    A special rate is already applied on at least one selected date.
+                  </div>
+                )}
+
+                {selectionHasExistingSpecial && (
+                  <div className="flex items-center gap-2 mb-3">
+                    <button
+                      onClick={() => handleRemoveSpecialRate(getSelectedAppliedSpecialIds())}
+                      className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 transition-colors"
+                    >
+                      Remove special rate
+                    </button>
+                    <button
+                      onClick={() => handleEditSpecialRate(getSelectedAppliedSpecialIds()[0])}
+                      className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 transition-colors"
+                    >
+                      Edit special rate
+                    </button>
+                  </div>
+                )}
+
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {transformedSpecialRates.length > 0 ? (
+                transformedSpecialRates.map((rate) => (
+                  <button
+                    key={rate.id}
+                    onClick={() => applySpecialRate(rate)}
+                    className="w-full text-left p-3 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div 
+                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: rate.color }}
+                      ></div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm text-gray-900">{rate.name}</div>
+                        <div className="text-xs text-gray-500 truncate">{rate.description}</div>
+                        <div className="text-xs text-gray-400 mt-1">
+                          {rate.kind === 'offer' ? '📢 Discount' : '🔥 Peak Rate'}
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                ))
+              ) : (
+                <div className="text-center py-4 text-gray-500 text-sm">
+                  No special rates available
+                </div>
+              )}
+            </div>
+            
+            <div className="mt-3 pt-3 border-t border-gray-200">
+              <button
+                onClick={clearSelection}
+                className="w-full text-sm text-gray-600 hover:text-gray-800 transition-colors"
+              >
+                Cancel Selection
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -9,21 +9,12 @@ const SpecialRateController = {
     let {
       kind, 
       name, 
-      description, 
       propertyId, 
-      dateFrom, 
-      dateTo,
+      color,
       pricingMode, 
       flatPrice, 
       percentAdj, 
-      conflictPolicy, 
-      priority,
-      minNights, 
-      maxBookings, 
-      tags, 
-      conditions, 
-      metadata,
-      roomTypeLinks // Array of room type specific overrides
+      roomTypeLinks 
     } = req.body;
 
     console.log(req.body)
@@ -60,35 +51,21 @@ const SpecialRateController = {
     }
 
     // Clean up empty strings and convert to proper types
-    priority = priority && priority !== '' ? parseInt(priority) : 1;
-    minNights = minNights && minNights !== '' ? parseInt(minNights) : 1;
-    maxBookings = maxBookings && maxBookings !== '' ? parseInt(maxBookings) : null;
-    conflictPolicy = conflictPolicy && conflictPolicy !== '' ? conflictPolicy : 'override';
     
     // Ensure roomTypeLinks is an array
     if (!Array.isArray(roomTypeLinks)) {
       roomTypeLinks = [];
     }
 
-    const createdBy = "b572d42e-489d-42a7-a5f7-2d2c8839a809";
 
     // Basic validation
-    if (!name || !propertyId || !dateFrom || !dateTo) {
+    if (!name || !propertyId ) {
       return res.status(400).json({
         success: false,
-        message: 'Required fields missing: name, propertyId, dateFrom, dateTo, pricingMode'
+        message: 'Required fields missing: name, propertyId, pricingMode'
       });
     }
 
-    // Date validation
-    if (new Date(dateFrom) >= new Date(dateTo)) {
-      return res.status(400).json({
-        success: false,
-        message: 'dateFrom must be before dateTo'
-      });
-    }
-
-    // Pricing validation
     if (pricingMode === 'flat' && !flatPrice) {
       return res.status(400).json({
         success: false,
@@ -123,7 +100,7 @@ const SpecialRateController = {
       where: {
       propertyId,
       name:name.trim(),
-        isDeleted: false,
+      isDeleted: false,
       },
       include:{
         roomTypeLinks: true
@@ -131,7 +108,7 @@ const SpecialRateController = {
     });
 
 
-        const PropertyRoomTypes = await prisma.propertyRoomType.findMany({
+    const PropertyRoomTypes = await prisma.propertyRoomType.findMany({
           where: {
             propertyId,
             isDeleted: false
@@ -153,22 +130,11 @@ const SpecialRateController = {
       data: {
         kind: kind , // Default to custom if not provided
         name,
-        description,
         propertyId,
-        dateFrom: new Date(dateFrom),
-        dateTo: new Date(dateTo),
         pricingMode,
+        color,
         flatPrice: pricingMode === 'flat' ? parseFloat(flatPrice) : null,
         percentAdj: pricingMode === 'percent' ? parseFloat(percentAdj) : null,
-        conflictPolicy: conflictPolicy || 'override',
-        priority: priority || 1,
-        minNights: minNights || 1,
-        maxBookings: maxBookings ? parseInt(maxBookings) : null,
-        tags: tags || null,
-        conditions: conditions || null,
-        metadata: metadata || null,
-        createdBy,
-        // Create room type links if provided
         roomTypeLinks: roomTypeLinks && roomTypeLinks.length > 0 ? {
           create: roomTypeLinks.map(link => ({
             propertyRoomTypeId: link.propertyRoomTypeId,
@@ -185,12 +151,7 @@ const SpecialRateController = {
             title: true // Changed from 'name' to 'title' as per schema
           } 
         },
-        creator: { 
-          select: { 
-            firstName: true, 
-            lastName: true 
-          } 
-        },
+       
         roomTypeLinks: {
           include: {
             propertyRoomType: {
@@ -241,82 +202,57 @@ const SpecialRateController = {
   
   // 📋 READ - Get all special rates
   getSpecialRates: async (req, res) => {
-    try {
-      const { propertyId } = req.params;
-      const { 
-        status = 'all', // 'active', 'inactive', 'expired', 'upcoming', 'all'
-        page = 1, 
-        limit = 10,
-        search
-      } = req.query;
-      
-      const skip = (parseInt(page) - 1) * parseInt(limit);
-      const currentDate = new Date();
-      
-      let whereClause = {
-        propertyId,
-        isDeleted: false
-      };
-      
-      // Status filtering
-      switch (status) {
-        case 'active':
-          whereClause.isActive = true;
-          whereClause.dateFrom = { lte: currentDate };
-          whereClause.dateTo = { gte: currentDate };
-          break;
-        case 'inactive':
-          whereClause.isActive = false;
-          break;
-        case 'expired':
-          whereClause.dateTo = { lt: currentDate };
-          break;
-        case 'upcoming':
-          whereClause.dateFrom = { gt: currentDate };
-          break;
-      }
-      
-      // Search filtering
-      if (search) {
-        whereClause.OR = [
-          { name: { contains: search, mode: 'insensitive' } },
-          { description: { contains: search, mode: 'insensitive' } }
-        ];
-      }
-      
-      const [specialRates, totalCount] = await Promise.all([
-        prisma.specialRate.findMany({
-          where: whereClause,
-          skip,
-          take: parseInt(limit),
-          orderBy: { createdAt: 'desc' },
-          include: {
-            property: { select: { title: true } },
-          }
-        }),
-        prisma.specialRate.count({ where: whereClause })
-      ]);
-      
-      res.json({
-        success: true,
-        data: specialRates,
-        pagination: {
-          currentPage: parseInt(page),
-          totalPages: Math.ceil(totalCount / parseInt(limit)),
-          totalCount,
-          hasNext: skip + parseInt(limit) < totalCount,
-          hasPrev: parseInt(page) > 1
-        }
-      });
-      
-    } catch (error) {
-      console.error('Get Special Rates Error:', error);
-      res.status(500).json({
+  try {
+    const { propertyId } = req.params;
+
+    if (!propertyId) {
+      return res.status(400).json({
         success: false,
-        message: 'Internal server error'
+        message: "propertyId is required"
       });
     }
-  },
+
+    const specialRates = await prisma.specialRate.findMany({
+      where: {
+        propertyId,
+        isDeleted: false
+      },
+      orderBy: {
+        createdAt: 'desc'
+      },
+      include: {
+        property: {
+          select: { title: true }
+        },
+        roomTypeLinks: {
+          include: {
+            propertyRoomType: {
+              include: {
+                roomType: {
+                  select: { name: true }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Special rates fetched successfully",
+      data: specialRates
+    });
+
+  } catch (error) {
+    console.error("Get Special Rates Error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
+  }
+},
+
   
   // 👁️ READ - Get single special rate
   getSpecialRateById: async (req, res) => {

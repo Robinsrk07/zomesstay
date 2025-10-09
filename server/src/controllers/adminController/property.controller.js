@@ -51,10 +51,15 @@ function fileToUrl(req, f) {
   return `${base}${rel}`;
 }
 
-const safeJSON = (str, fallback) => {
+const safeJSON = (str, fallback, label = '') => {
   if (!str) return fallback;
   if (typeof str === 'object') return str;
-  try { return JSON.parse(str); } catch { return fallback; }
+  try { 
+    return JSON.parse(str); 
+  } catch (err) { 
+    if (label) console.error(`safeJSON parse error for ${label}:`, err.message, 'Input:', str.substring(0, 200));
+    return fallback; 
+  }
 };
 
 const DAYS_TO_SEED = Number(process.env.RATECALENDAR_SEED_DAYS || 180);
@@ -95,11 +100,11 @@ const PropertyController = {
   // ========== AMENITIES ==========
   createAmenity: async (req, res) => {
     try {
-      const { name, isActive = true } = req.body;
-      const icon = req.file ? `/uploads/amenities/${req.file.filename}` : null;
+      const { name, category = 'OTHER', isActive = true } = req.body;
+      const icon = req.file ? `/uploads/images/${req.file.filename}` : null;
 
       const amenity = await prisma.amenity.create({
-        data: { name, icon, isActive: parseBool(isActive, true) }
+        data: { name, category, icon, isActive: parseBool(isActive, true) }
       });
 
       res.status(201).json({ success: true, message: 'Amenity created', data: amenity });
@@ -130,13 +135,14 @@ const PropertyController = {
       const guard = await ensureNotDeleted(prisma.amenity, id, 'Amenity');
       if (guard.error) return res.status(404).json({ success: false, message: guard.error });
 
-      const { name, isActive } = req.body;
+      const { name, category, isActive } = req.body;
       const icon = req.file ? `/uploads/amenities/${req.file.filename}` : undefined;
 
       const amenity = await prisma.amenity.update({
         where: { id },
         data: {
           ...(name && { name }),
+          ...(category && { category }),
           ...(icon && { icon }),
           ...(isActive !== undefined && { isActive: parseBool(isActive) })
         }
@@ -443,6 +449,12 @@ createProperty:async (req, res) => {
       roomtypes,
     } = req.body;
 
+
+    console.log("files",req.files);
+    console.log('roomtypes RAW:', roomtypes);
+    console.log('roomtypes TYPE:', typeof roomtypes);
+
+
     let locationData;
     try {
       locationData = typeof location === 'string' ? JSON.parse(location) : location;
@@ -468,7 +480,13 @@ createProperty:async (req, res) => {
     const amenityList = safeJSON(amenityIds, []).filter(Boolean);
     const facilityList = safeJSON(facilityIds, []).filter(Boolean);
     const safetyList  = safeJSON(safetyIds,  []).filter(Boolean);
-    const roomTypeList = safeJSON(roomtypes,  []).filter(Boolean); // [{roomTypeId, basePrice}, ...]
+    
+    const roomTypesRaw = safeJSON(roomtypes, [], 'roomtypes');
+    console.log('After safeJSON:', roomTypesRaw);
+    console.log('Is Array?', Array.isArray(roomTypesRaw));
+    
+    const roomTypeList = roomTypesRaw.filter(Boolean); // [{roomTypeId, basePrice}, ...]
+    console.log('After filter(Boolean):', roomTypeList);
 
     // 2) Validate foreign keys (outside txn is fine; you can move inside if you want strict serialization)
     const mustExist = async (model, ids, label) => {
@@ -500,6 +518,7 @@ createProperty:async (req, res) => {
       return acc;
     }, {});
     const mediaFiles = filesByField['media'] || [];
+
     const allowedImage = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
     const allowedVideo = ['video/mp4', 'video/webm', 'video/mov'];
     const maxFileSize = 50 * 1024 * 1024;
@@ -544,6 +563,12 @@ createProperty:async (req, res) => {
                 create: roomTypeList.map(rt => ({
                   roomType: { connect: { id: rt.roomTypeId } },
                   basePrice: rt.basePrice, // Decimal
+                  singleoccupancyprice: rt.singleoccupancyprice,
+                  Occupancy: rt.Occupancy,
+                  extraBedCapacity: rt.extraBedCapacity,
+                  extraBedPriceAdult: rt.extraBedPriceAdult,
+                  extraBedPriceChild: rt.extraBedPriceChild,
+                  extraBedPriceInfant: rt.extraBedPriceInfant,
                 })),
               }
             : undefined,
@@ -552,7 +577,7 @@ createProperty:async (req, res) => {
           media: mediaFiles.length
             ? {
                 create: mediaFiles.map((file, idx) => ({
-                  url: file.url, // or your public URL builder
+                  url: file.url || `/uploads/${file.subdirectory || 'images'}/${file.filename}`,
                   type: file.mimetype.startsWith('image') ? 'image' : 'video',
                   isFeatured: idx === 0,
                   order: idx,
@@ -568,6 +593,8 @@ createProperty:async (req, res) => {
           safeties: true,
         },
       });
+
+      console.log('Created property with roomTypes:', property.roomTypes?.length || 0);
 
       // Seed RateCalendar for each PropertyRoomType
       if (property.roomTypes?.length) {
@@ -589,18 +616,8 @@ createProperty:async (req, res) => {
         }
       }
 
-      // Optionally compute/return a minimal response object
-      return {
-        id: property.id,
-        title: property.title,
-        status: property.status,
-        roomTypes: property.roomTypes.map(rt => ({
-          id: rt.id,
-          roomTypeId: rt.roomTypeId,
-          basePrice: rt.basePrice,
-          isActive: rt.isActive,
-        })),
-      };
+      // Return full property with all relations
+      return property;
     });
 
     // 5) Success
@@ -776,9 +793,7 @@ getProperties: async (req, res) => {
             pricingMode: true,
             flatPrice: true,
             percentAdj: true,
-            dateFrom: true,
-            dateTo: true,
-            priority: true,
+            color: true,
           },
         },
 

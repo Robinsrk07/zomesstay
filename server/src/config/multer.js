@@ -34,7 +34,8 @@ const ALLOWED_IMAGES = new Set([
   'image/png',
   'image/webp',
   'image/gif',
-  'image/jpg'
+  'image/jpg',
+  'image/svg+xml'
 ]);
 
 const ALLOWED_VIDEOS = new Set([
@@ -49,7 +50,7 @@ const imageFilter = (req, file, cb) => {
   if (ALLOWED_IMAGES.has(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Only image files are allowed (jpg, png, webp, gif)'));
+    cb(new Error('Only image files are allowed (jpg, png, webp, gif, svg)'));
   }
 };
 
@@ -97,6 +98,22 @@ const uploadMedia = multer({
   fileFilter: mediaFilter
 });
 
+// Make sure uploadIcon is defined and exported
+const uploadIcon = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit for icons
+  },
+  fileFilter: (req, file, cb) => {
+    // Accept only image files for icons
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed for icons'), false);
+    }
+  }
+});
+
 // Helper function for multipart requests
 const isMultipart = (req) => (req.headers['content-type'] || '').startsWith('multipart/form-data');
 
@@ -105,6 +122,7 @@ module.exports = {
   uploadImage,
   uploadVideo,
   uploadMedia,
+  uploadIcon, // Make sure this is exported
   isMultipart,
   UPLOAD_BASE
 };

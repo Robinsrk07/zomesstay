@@ -14,11 +14,9 @@ import {
 
 const SpecialRateModal = ({ isOpen, onClose, propertyId, onApplied }) => {
   // Form state
-  const [kind, setKind] = useState('offer');
+  const [kind, setKind] = useState();
   const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [color, setColor] = useState(); 
   const [isGlobalPricing, setIsGlobalPricing] = useState(true);
 
   // Global pricing states
@@ -28,7 +26,6 @@ const SpecialRateModal = ({ isOpen, onClose, propertyId, onApplied }) => {
 
   // Room rows
   const [roomRows, setRoomRows] = useState([]);
-  const [conflictPolicy, setConflictPolicy] = useState('override');
 
   // UI states
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -37,12 +34,13 @@ const SpecialRateModal = ({ isOpen, onClose, propertyId, onApplied }) => {
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitError, setSubmitError] = useState('');
 
+  
+
   // Form validation
   const validateField = (fieldName, value, allValues = {}) => {
     const currentValues = {
       name,
-      dateFrom,
-      dateTo,
+      color,
       globalFlatPrice,
       globalPercentAdj,
       ...allValues
@@ -56,24 +54,9 @@ const SpecialRateModal = ({ isOpen, onClose, propertyId, onApplied }) => {
         if (!/^[a-zA-Z0-9\s\-_.,()]+$/.test(value.trim())) return 'Rate name contains invalid characters';
         return null;
 
-      case 'dateFrom':
-        if (!value) return 'Start date is required';
-        const fromDate = new Date(value);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        if (fromDate < today) return 'Start date cannot be in the past';
-        return null;
-
-      case 'dateTo':
-        if (!value) return 'End date is required';
-        if (!currentValues.dateFrom) return null;
-        const toDate = new Date(value);
-        const fromDateForComparison = new Date(currentValues.dateFrom);
-        if (toDate <= fromDateForComparison) return 'End date must be after start date';
-        
-        const diffTime = Math.abs(toDate - fromDateForComparison);
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        if (diffDays > 365) return 'Date range cannot exceed 365 days';
+      case 'color':
+        if (!value) return 'Color selection is required';
+        if (!/^#[0-9A-Fa-f]{6}$/.test(value)) return 'Invalid color format';
         return null;
 
       case 'globalFlatPrice':
@@ -154,12 +137,6 @@ const SpecialRateModal = ({ isOpen, onClose, propertyId, onApplied }) => {
     const nameError = validateField('name', name);
     if (nameError) newErrors.name = nameError;
 
-    const dateFromError = validateField('dateFrom', dateFrom);
-    if (dateFromError) newErrors.dateFrom = dateFromError;
-
-    const dateToError = validateField('dateTo', dateTo);
-    if (dateToError) newErrors.dateTo = dateToError;
-
     // Global pricing validations
     if (isGlobalPricing) {
       if (globalPricingMode === 'flat') {
@@ -190,17 +167,7 @@ const SpecialRateModal = ({ isOpen, onClose, propertyId, onApplied }) => {
     }
   };
 
-  // Initialize dates when modal opens
-  useEffect(() => {
-    if (!isOpen) return;
-    
-    const today = new Date();
-    const nextWeek = new Date();
-    nextWeek.setDate(today.getDate() + 7);
-    
-    setDateFrom(today.toISOString().split('T')[0]);
-    setDateTo(nextWeek.toISOString().split('T')[0]);
-  }, [isOpen]);
+  
 
   // Fetch room types
   useEffect(() => {
@@ -285,11 +252,8 @@ const SpecialRateModal = ({ isOpen, onClose, propertyId, onApplied }) => {
       const payload = {
         kind,
         name: name.trim(),
-        description: description.trim(),
+        color, // Add color to payload
         propertyId,
-        dateFrom,
-        dateTo,
-        conflictPolicy,
       };
 
       if (isGlobalPricing) {
@@ -310,7 +274,7 @@ const SpecialRateModal = ({ isOpen, onClose, propertyId, onApplied }) => {
     
       
       
-     const response = await specialRateService.createSpecialRate(propertyId,payload);     
+     const response = await specialRateService.createSpecialRate(propertyId, payload);     
 
       setSubmitSuccess(true);
       
@@ -329,17 +293,14 @@ const SpecialRateModal = ({ isOpen, onClose, propertyId, onApplied }) => {
   };
 
   const resetForm = () => {
-    setKind('offer');
+    setKind('');
     setName('');
-    setDescription('');
-    setDateFrom('');
-    setDateTo('');
+    setColor(''); 
     setIsGlobalPricing(true);
     setGlobalPricingMode('flat');
     setGlobalFlatPrice('');
     setGlobalPercentAdj('');
     setRoomRows([]);
-    setConflictPolicy('override');
     setErrors({});
     setSubmitError('');
     setSubmitSuccess(false);
@@ -390,11 +351,9 @@ const SpecialRateModal = ({ isOpen, onClose, propertyId, onApplied }) => {
               </div>
               <div>
                 <h2 className="text-xl font-semibold text-gray-900">
-                  Special Rate Management
+                  Smart Rate Management
                 </h2>
-                <p className="text-sm text-gray-500">
-                  Create offers and peak pricing for your property
-                </p>
+                
               </div>
             </div>
             <button
@@ -433,8 +392,8 @@ const SpecialRateModal = ({ isOpen, onClose, propertyId, onApplied }) => {
               <BasicInfoSection
                 name={name}
                 setName={setName}
-                description={description}
-                setDescription={setDescription}
+                color={color}
+                setColor={setColor}
                 kind={kind}
                 setKind={setKind}
                 errors={errors}
@@ -442,14 +401,7 @@ const SpecialRateModal = ({ isOpen, onClose, propertyId, onApplied }) => {
               />
 
               {/* Dates Section */}
-              <DatesSection
-                dateFrom={dateFrom}
-                setDateFrom={setDateFrom}
-                dateTo={dateTo}
-                setDateTo={setDateTo}
-                errors={errors}
-                onFieldChange={handleFieldChange}
-              />
+              
 
               {/* Pricing Strategy Toggle */}
               <PricingStrategySection
@@ -483,10 +435,7 @@ const SpecialRateModal = ({ isOpen, onClose, propertyId, onApplied }) => {
               )}
 
               {/* Conflict Policy */}
-              <ConflictPolicySection
-                conflictPolicy={conflictPolicy}
-                setConflictPolicy={setConflictPolicy}
-              />
+             
             </div>
           )}
         </div>
@@ -507,12 +456,9 @@ const SpecialRateModal = ({ isOpen, onClose, propertyId, onApplied }) => {
 };
 
 // Basic Info Section Component
-const BasicInfoSection = ({ name, setName, description, setDescription, kind, setKind, errors, onFieldChange }) => (
+const BasicInfoSection = ({ name, setName, color, setColor, kind, setKind, errors, onFieldChange }) => (
   <div className="space-y-4">
-    <div className="flex items-center space-x-2">
-      <Target className="h-5 w-5 text-violet-600" />
-      <h3 className="text-lg font-medium text-gray-900">Basic Information</h3>
-    </div>
+    
 
     <div className="space-y-4">
       {/* Rate Type */}
@@ -529,7 +475,7 @@ const BasicInfoSection = ({ name, setName, description, setDescription, kind, se
             />
             <span className="text-sm flex items-center">
               <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-              Offer (Discount)
+              Decrease (Discount)
             </span>
           </label>
           <label className="flex items-center cursor-pointer">
@@ -542,7 +488,7 @@ const BasicInfoSection = ({ name, setName, description, setDescription, kind, se
             />
             <span className="text-sm flex items-center">
               <span className="w-2 h-2 bg-red-500 rounded-full mr-2"></span>
-              Peak (Premium)
+              Increase (Surcharge)
             </span>
           </label>
         </div>
@@ -574,80 +520,66 @@ const BasicInfoSection = ({ name, setName, description, setDescription, kind, se
         )}
       </div>
 
-      {/* Description */}
+      {/* Color Picker */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder={kind === 'offer' ? 'Describe your offer details...' : 'Describe peak pricing reason...'}
-          rows={3}
-          maxLength={500}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500 resize-none"
-        />
-        <div className="mt-1 text-xs text-gray-500 text-right">
-          {description.length}/500
+        <label className="block text-sm font-medium text-gray-700 mb-2">Rate Color *</label>
+        <div className="space-y-3">
+          {/* Color Preview */}
+          <div className="flex items-center space-x-3">
+            <div 
+              className="w-8 h-8 rounded-lg border-2 border-gray-200 shadow-sm"
+              style={{ backgroundColor: color }}
+            ></div>
+            <span className="text-sm text-gray-600">Selected: {color}</span>
+          </div>
+          
+          
+          
+          <div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="color"
+                value={color}
+                onChange={(e) => {
+                  setColor(e.target.value);
+                  onFieldChange('color', e.target.value);
+                }}
+                className="w-12 h-10 border border-gray-300 rounded-lg cursor-pointer"
+              />
+              <input
+                type="text"
+                value={color}
+                onChange={(e) => {
+                  setColor(e.target.value);
+                  onFieldChange('color', e.target.value);
+                }}
+                placeholder="#10B981"
+                className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors font-mono text-sm ${
+                  errors.color 
+                    ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                    : 'border-gray-300 focus:ring-violet-500 focus:border-violet-500'
+                }`}
+                pattern="^#[0-9A-Fa-f]{6}$"
+                maxLength={7}
+              />
+            </div>
+            {errors.color && (
+              <div className="mt-1 flex items-center space-x-1 text-red-600 text-xs">
+                <AlertTriangle className="h-3 w-3" />
+                <span>{errors.color}</span>
+              </div>
+            )}
+            <p className="text-xs text-gray-500 mt-1">
+              Use hex format (e.g., #10B981). This color will be used to identify this rate in the calendar.
+            </p>
+          </div>
         </div>
       </div>
     </div>
   </div>
 );
 
-// Dates Section Component
-const DatesSection = ({ dateFrom, setDateFrom, dateTo, setDateTo, errors, onFieldChange }) => (
-  <div className="space-y-4">
-    <div className="flex items-center space-x-2">
-      <CalendarDays className="h-5 w-5 text-green-600" />
-      <h3 className="text-lg font-medium text-gray-900">Date Range</h3>
-    </div>
-    <div className="grid grid-cols-2 gap-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">From Date *</label>
-        <input
-          type="date"
-          value={dateFrom}
-          onChange={(e) => {
-            setDateFrom(e.target.value);
-            onFieldChange('dateFrom', e.target.value, { dateTo });
-          }}
-          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
-            errors.dateFrom 
-              ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
-              : 'border-gray-300 focus:ring-violet-500 focus:border-violet-500'
-          }`}
-        />
-        {errors.dateFrom && (
-          <div className="mt-1 flex items-center space-x-1 text-red-600 text-xs">
-            <AlertTriangle className="h-3 w-3" />
-            <span>{errors.dateFrom}</span>
-          </div>
-        )}
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">To Date *</label>
-        <input
-          type="date"
-          value={dateTo}
-          onChange={(e) => {
-            setDateTo(e.target.value);
-            onFieldChange('dateTo', e.target.value, { dateFrom });
-          }}
-          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
-            errors.dateTo 
-              ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
-              : 'border-gray-300 focus:ring-violet-500 focus:border-violet-500'
-          }`}
-        />
-        {errors.dateTo && (
-          <div className="mt-1 flex items-center space-x-1 text-red-600 text-xs">
-            <AlertTriangle className="h-3 w-3" />
-            <span>{errors.dateTo}</span>
-          </div>
-        )}
-      </div>
-    </div>
-  </div>
-);
+
 
 // Pricing Strategy Section Component
 const PricingStrategySection = ({ isGlobalPricing, setIsGlobalPricing }) => (
@@ -922,31 +854,7 @@ const RoomSpecificPricingSection = ({ rows, updateRow, kind, errors }) => (
   </div>
 );
 
-// Conflict Policy Section Component
-const ConflictPolicySection = ({ conflictPolicy, setConflictPolicy }) => (
-  <div className="space-y-4">
-    <div className="flex items-center space-x-2">
-      <AlertTriangle className="h-5 w-5 text-yellow-600" />
-      <h3 className="text-lg font-medium text-gray-900">Conflict Policy</h3>
-    </div>
-    
-    <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          What to do if dates already have special rates?
-        </label>
-        <select
-          value={conflictPolicy}
-          onChange={(e) => setConflictPolicy(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
-        >
-          <option value="override">Override Existing Rates</option>
-          <option value="skip">Skip Conflicting Dates</option>
-        </select>
-      </div>
-    </div>
-  </div>
-);
+
 // Sticky Footer Component
 const StickyFooter = ({ isSubmitting, submitError, submitSuccess, onSubmit, onClose, hasErrors, disabled }) => (
   <div className="px-6 py-4 border-t border-gray-200 bg-white rounded-b-2xl flex-shrink-0">

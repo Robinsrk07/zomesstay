@@ -3,8 +3,6 @@ import FacilityCardRow from "../components/FacilityCardRow";
 import AmenitiesList from "../components/AmenitiesList";
 import SafetyHygieneList from "../components/SafetyHygieneList";
 import ReservationCalendarPanel from "../components/ReservationCalendarPanel";
-import RoomCard from "../components/RoomCard";
-import RoomCardData from "../data/RoomCard.json";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import { Star } from "lucide-react";
 import { useParams, useLocation } from "react-router-dom";
@@ -14,22 +12,7 @@ import { useRef } from "react";
 
 const facilities = [
   { title: "Restaurants",   
-    image: "https://images.unsplash.com/photo-1528605105345-5344ea20e269?auto=format&fit=crop&w=800&q=80" },
-
-  { title: "Swimming Pool", 
-    image: "https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=800&q=80" },
-
-  { title: "Parking",       
-    image: "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=800&q=80" },
-
-  { title: "Free Wi-Fi",    
-    image: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=800&q=80" },
-
-  { title: "Gym",           
-    image: "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&w=800&q=80" },
-
-  { title: "Spa",           
-    image: "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=800&q=80" },
+    image: "https://images.unsplash.com/photo-1528605105345-5344ea20e269?auto=format&fit=crop&w=800&q=80" }
 ];
 
 
@@ -247,9 +230,16 @@ const calculateTotalPrice = () => {
 
 const calendarData = processCalendarData(propertyDetails || { roomTypes: [], specialRates: [] });
 const ListAmenities = propertyDetails?.amenities || [];
-const amenities =  ListAmenities.map((item)=>{return {title:item.name , icon:mediaService.getMedia(item.icon)}})
+const amenities = ListAmenities.map((item) => { return { title: item.name, icon: mediaService.getMedia(item.icon) } })
 const ListSafety = propertyDetails?.safeties || [];
-const safetyAndHygiene =  ListSafety.map((item)=>{return {title:item.name , icon:mediaService.getMedia(item.icon)}})
+const safetyAndHygiene = ListSafety.map((item) => { return { title: item.name, icon: mediaService.getMedia(item.icon) } })
+
+// Add proper location handling
+const locationDisplay = propertyDetails?.location 
+  ? (typeof propertyDetails.location === 'string' 
+      ? propertyDetails.location 
+      : `${propertyDetails.location.street || ''}, ${propertyDetails.location.city || ''}, ${propertyDetails.location.state || ''}, ${propertyDetails.location.country || ''} ${propertyDetails.location.zipCode || ''}`.trim())
+  : "Location not available";
 
 
  // const safetyAndHygiene = propertyDetails?.safeties || [];
@@ -319,7 +309,7 @@ useEffect(()=>{
      
        <div className=" w-full md:w-[60%]  flex flex-col gap-4">
           <h1 className="text-[18px] lg:text-[36px] font-bold text-[#484848]">{propertyDetails?.title}</h1>
-          <p className="text-gray-400">{propertyDetails?.location}</p>
+         
           <div className=" rounded-md border border-gray-200 w-[90%] m-2 p-2">
           <FacilityCardRow facilities={facilities} />
           </div>
@@ -552,6 +542,8 @@ useEffect(()=>{
 
 <div className="p-[20px] md:p-[40px]">
   <h2 className="text-lg font-bold mb-3">Location</h2>
+  {/* Add location text display */}
+  <p className="text-gray-600 mb-4">{locationDisplay}</p>
   <div className="w-full h-[300px] rounded-xl overflow-hidden shadow">
     <iframe
       title="Property Location"

@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -82,6 +82,40 @@ enum PricingMode {
   percent
 }
 
+enum AmenityCategory {
+  KITCHEN
+  BATHROOM
+  ENTERTAINMENT
+  COMFORT
+  SAFETY
+  OUTDOOR
+  LAUNDRY
+  TECHNOLOGY
+  OTHER
+}
+
+enum FacilityCategory {
+  RECREATION
+  BUSINESS
+  WELLNESS
+  TRANSPORT
+  DINING
+  SHOPPING
+  SERVICES
+  ACCESSIBILITY
+  OTHER
+}
+
+enum SafetyCategory {
+  FIRE_SAFETY
+  SECURITY
+  HEALTH_HYGIENE
+  EMERGENCY
+  CHILD_SAFETY
+  ACCESSIBILITY
+  OTHER
+}
+
 /**
  * ===================== People =====================
  */
@@ -157,13 +191,14 @@ model User {
  */
 
 model Amenity {
-  id        String   @id @default(uuid()) @db.Char(36)
-  name      String
-  icon      String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  isDeleted Boolean  @default(false)
+  id        String          @id @default(uuid()) @db.Char(36)
+  name      String          @db.VarChar(100)
+  icon      String?         @db.Text // For SVG content or base64
+  category  AmenityCategory @default(OTHER)
+  isActive  Boolean         @default(true)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  isDeleted Boolean         @default(false)
 
   propertyLinks PropertyAmenity[]
   roomTypeLinks RoomTypeAmenity[]
@@ -171,36 +206,41 @@ model Amenity {
 
   @@unique([name, isDeleted])
   @@index([isDeleted])
+  @@index([category, isActive])
 }
 
 model Facility {
-  id        String   @id @default(uuid()) @db.Char(36)
-  name      String
-  icon      String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  isDeleted Boolean  @default(false)
+  id        String           @id @default(uuid()) @db.Char(36)
+  name      String           @db.VarChar(100)
+  icon      String?          @db.Text // For SVG content or base64
+  category  FacilityCategory @default(OTHER)
+  isActive  Boolean          @default(true)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  isDeleted Boolean          @default(false)
 
   propertyLinks PropertyFacility[]
 
   @@unique([name, isDeleted])
   @@index([isDeleted])
+  @@index([category, isActive])
 }
 
 model SafetyHygiene {
-  id        String   @id @default(uuid()) @db.Char(36)
-  name      String
-  icon      String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  isDeleted Boolean  @default(false)
+  id        String         @id @default(uuid()) @db.Char(36)
+  name      String         @db.VarChar(100)
+  icon      String?        @db.Text // For SVG content or base64
+  category  SafetyCategory @default(OTHER)
+  isActive  Boolean        @default(true)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  isDeleted Boolean        @default(false)
 
   propertyLinks PropertySafety[]
 
   @@unique([name, isDeleted])
   @@index([isDeleted])
+  @@index([category, isActive])
 }
 
 model PropertyType {
@@ -237,21 +277,22 @@ model Property {
   ownerHostId String @db.Char(36)
   ownerHost   Host   @relation(fields: [ownerHostId], references: [id])
 
-  propertyTypeId  String?       @db.Char(36)
-  propertyType    PropertyType? @relation(fields: [propertyTypeId], references: [id])
+  propertyTypeId String?       @db.Char(36)
+  propertyType   PropertyType? @relation(fields: [propertyTypeId], references: [id])
 
-  media         PropertyMedia[]
-  roomTypes     PropertyRoomType[]
-  bookings      Booking[]
-  payments      Payment[]
-  reviews       Review[]
-  promotions    Promotion[]
-  wishlistItems WishlistItem[]
-  amenities     PropertyAmenity[]
-  facilities    PropertyFacility[]
-  safeties      PropertySafety[]
-  specialRates  SpecialRate[]
-  MealPlan      MealPlan[]
+  media                  PropertyMedia[]
+  roomTypes              PropertyRoomType[]
+  bookings               Booking[]
+  payments               Payment[]
+  reviews                Review[]
+  promotions             Promotion[]
+  wishlistItems          WishlistItem[]
+  amenities              PropertyAmenity[]
+  facilities             PropertyFacility[]
+  safeties               PropertySafety[]
+  specialRates           SpecialRate[]
+  MealPlan               MealPlan[]
+  SpecialRateApplication SpecialRateApplication[]
 
   @@unique([title, isDeleted])
   @@index([ownerHostId])
@@ -291,14 +332,15 @@ model RoomType {
 }
 
 model PropertyRoomType {
-  id         String   @id @default(uuid()) @db.Char(36)
-  propertyId String   @db.Char(36)
-  roomTypeId String   @db.Char(36)
-  basePrice  Decimal  @db.Decimal(10, 2)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  isDeleted  Boolean  @default(false)
-  isActive   Boolean  @default(true)
+  id                   String   @id @default(uuid()) @db.Char(36)
+  propertyId           String   @db.Char(36)
+  roomTypeId           String   @db.Char(36)
+  basePrice            Decimal  @db.Decimal(10, 2)
+  singleoccupancyprice Decimal  @db.Decimal(10, 2) // Add this field
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  isDeleted            Boolean  @default(false)
+  isActive             Boolean  @default(true)
 
   Occupancy           Int     @default(2)
   extraBedCapacity    Int     @default(0)
@@ -306,12 +348,13 @@ model PropertyRoomType {
   extraBedPriceChild  Decimal @default(0) @db.Decimal(10, 2)
   extraBedPriceInfant Decimal @default(0) @db.Decimal(10, 2)
 
-  property         Property              @relation(fields: [propertyId], references: [id])
-  roomType         RoomType              @relation(fields: [roomTypeId], references: [id])
-  rooms            Room[]
-  rates            RateCalendar[]
-  bookings         Booking[]
-  specialRateLinks SpecialRateRoomType[]
+  property               Property                 @relation(fields: [propertyId], references: [id])
+  roomType               RoomType                 @relation(fields: [roomTypeId], references: [id])
+  rooms                  Room[]
+  rates                  RateCalendar[]
+  bookings               Booking[]
+  specialRateLinks       SpecialRateRoomType[]
+  SpecialRateApplication SpecialRateApplication[]
 
   @@unique([propertyId, roomTypeId, isDeleted])
   @@index([propertyId])
@@ -638,45 +681,27 @@ model RoomAmenity {
  */
 
 model SpecialRate {
-  id          String          @id @default(uuid()) @db.Char(36)
-  kind        SpecialRateKind @default(custom)
-  name        String          @db.VarChar(100)
-  description String?         @db.Text
-  propertyId  String          @db.Char(36)
-  dateFrom    DateTime
-  dateTo      DateTime
-
-  pricingMode PricingMode?
-  flatPrice   Decimal?     @db.Decimal(10, 2)
-  percentAdj  Decimal?     @db.Decimal(5, 2)
-
-  conflictPolicy ConflictPolicy @default(override)
-  priority       Int            @default(1)
-  minNights      Int            @default(1)
-  maxBookings    Int?
-  usageCount     Int            @default(0)
-  tags           Json?
-  conditions     Json?
-  metadata       Json?
-  isActive       Boolean        @default(true)
-  createdBy      String         @db.Char(36)
-  approvedBy     String?        @db.Char(36)
-  approvedAt     DateTime?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  isDeleted      Boolean        @default(false)
-
-  property      Property              @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  creator       Host                  @relation(fields: [createdBy], references: [id])
-  roomTypeLinks SpecialRateRoomType[]
+  id                     String                   @id @default(uuid()) @db.Char(36)
+  kind                   SpecialRateKind          @default(custom)
+  name                   String                   @db.VarChar(100)
+  propertyId             String                   @db.Char(36)
+  pricingMode            PricingMode?
+  color                  String
+  flatPrice              Decimal?                 @db.Decimal(10, 2)
+  percentAdj             Decimal?                 @db.Decimal(5, 2)
+  isActive               Boolean                  @default(true)
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  isDeleted              Boolean                  @default(false)
+  property               Property                 @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  roomTypeLinks          SpecialRateRoomType[]
+  Host                   Host?                    @relation(fields: [hostId], references: [id])
+  hostId                 String?                  @db.Char(36)
+  SpecialRateApplication SpecialRateApplication[]
 
   @@unique([propertyId, name, isDeleted], name: "special_rate_unique")
   @@index([propertyId, isActive])
-  @@index([dateFrom, dateTo])
-  @@index([createdBy])
-  @@index([priority])
   @@index([isDeleted])
-  @@index([propertyId, dateFrom, dateTo, isActive])
   @@map("special_rates")
 }
 
@@ -699,6 +724,30 @@ model SpecialRateRoomType {
   @@unique([specialRateId, propertyRoomTypeId])
   @@index([specialRateId])
   @@index([propertyRoomTypeId])
+}
+
+model SpecialRateApplication {
+  id                 String   @id @default(uuid()) @db.Char(36)
+  specialRateId      String   @db.Char(36)
+  propertyId         String   @db.Char(36)
+  propertyRoomTypeId String?  @db.Char(36) // null => applies property-wide
+  dateFrom           DateTime
+  dateTo             DateTime
+  isActive           Boolean  @default(true)
+  createdBy          String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  specialRate      SpecialRate       @relation(fields: [specialRateId], references: [id], onDelete: Cascade)
+  property         Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  propertyRoomType PropertyRoomType? @relation(fields: [propertyRoomTypeId], references: [id], onDelete: Cascade)
+
+  // prevent duplicate applications for same scope-window
+  @@unique([specialRateId, propertyId, propertyRoomTypeId, dateFrom, dateTo], name: "unique_app_scope_window")
+  // fast calendar reads
+  @@index([propertyId, dateFrom, dateTo, isActive], name: "idx_app_property_date_active")
+  @@index([propertyRoomTypeId, dateFrom, dateTo, isActive], name: "idx_app_roomtype_date_active")
+  @@index([specialRateId], name: "idx_app_rate")
 }
 
 model RoomRateCalendar {

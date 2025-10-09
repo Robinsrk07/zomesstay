@@ -45,6 +45,7 @@ export const HOST_PROPERTY = {
 export const HOST_INVENTORY = {
   AVAILABILITY: '/properties',
   SPECIAL_RATES: '/special-rates'
+
 }
 
   
@@ -59,6 +60,14 @@ export const USER = {
 
 export const MEAL_PLAN = {
   MEAL_PLAN: '/meal-plan'
+}
+
+export const SPECIAL_RATE = {
+  SPECIAL_RATE_APPLY: '/special-rate-applications'
+}
+
+export const PROPERTY_ROOM_TYPES={
+  PROPERTY_ROOM_TYPES:'/propertyRoomType'
 }
 
 // Add more endpoint categories as needed

@@ -18,7 +18,6 @@ import SignInSuccess from './pages/SignInSucces';
 import AboutUs from "./pages/AboutUs";
 import AdminLogin from "./pages/Admin/AdminLogin";
 import BaseLayout from "./pages/Admin/BaseLayout";
-
 import Dashboard from "./pages/Admin/DashBoard";
 import Properties from "./pages/Admin/Properties";
 import AddProperty from "./pages/Admin/AddProperty";
@@ -39,7 +38,7 @@ import HostPromotionsDiscounts from "./pages/Host/HostPromotionsDiscounts";
 import Inventory from "./pages/Host/Inventory";
 import MealPlan from "./pages/Host/MealPlan";
 import { SearchProvider } from "./context/SearchContext";
-import 'react-datepicker/dist/react-datepicker.css';
+//import 'react-datepicker/dist/react-datepicker.css';
 
 export default function App() {
   return (
