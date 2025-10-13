@@ -512,6 +512,14 @@ createProperty:async (req, res) => {
     await mustExist(prisma.safetyHygiene, safetyList, 'Safety hygiene');
     await mustExist(prisma.roomType, roomTypeList.map(rt => rt.roomTypeId), 'RoomType');
 
+    // Collect and validate mealPlanIds if provided in roomtypes payload
+    const mealPlanIds = Array.from(new Set(
+      roomTypeList.flatMap(rt => Array.isArray(rt.mealPlans) ? rt.mealPlans.map(mp => mp.mealPlanId).filter(Boolean) : [])
+    ));
+    if (mealPlanIds.length) {
+      await mustExist(prisma.mealPlan, mealPlanIds, 'MealPlan');
+    }
+
     // 3) Validate files (kept minimal; adapt to your actual uploader)
     const filesByField = (req.files || []).reduce((acc, f) => {
       (acc[f.fieldname] ||= []).push(f);
@@ -562,13 +570,26 @@ createProperty:async (req, res) => {
             ? {
                 create: roomTypeList.map(rt => ({
                   roomType: { connect: { id: rt.roomTypeId } },
-                  basePrice: rt.basePrice, // Decimal
-                  singleoccupancyprice: rt.singleoccupancyprice,
-                  Occupancy: rt.Occupancy,
-                  extraBedCapacity: rt.extraBedCapacity,
-                  extraBedPriceAdult: rt.extraBedPriceAdult,
-                  extraBedPriceChild: rt.extraBedPriceChild,
-                  extraBedPriceInfant: rt.extraBedPriceInfant,
+                  basePrice: Number(rt.basePrice),
+                  singleoccupancyprice: Number(rt.singleoccupancyprice),
+                  Occupancy: Number(rt.Occupancy ?? 0),
+                  extraBedCapacity: Number(rt.extraBedCapacity ?? 0),
+                  extraBedPriceAdult: Number(rt.extraBedPriceAdult ?? 0),
+                  extraBedPriceChild: Number(rt.extraBedPriceChild ?? 0),
+                  extraBedPriceInfant: Number(rt.extraBedPriceInfant ?? 0),
+                 baseMealPlan: rt.baseMealPlanId 
+                          ? { connect: { id: rt.baseMealPlanId } }
+                          : undefined,
+                  mealPlanLinks: Array.isArray(rt.mealPlans) && rt.mealPlans.length
+                    ? {
+                        create: rt.mealPlans.map(mp => ({
+                          mealPlan: { connect: { id: mp.mealPlanId } },
+                          adultPrice: mp.adultPrice != null ? Number(mp.adultPrice) : null,
+                          childPrice: mp.childPrice != null ? Number(mp.childPrice) : null,
+                          isActive: mp.isActive ?? true,
+                        }))
+                      }
+                    : undefined,
                 })),
               }
             : undefined,
@@ -767,6 +788,20 @@ getProperties: async (req, res) => {
                 },
               },
             },
+            baseMealPlan: { 
+              select: { id: true, code: true, name: true, kind: true ,adult_price:true ,child_price:true,description:true , } 
+            },
+            mealPlanLinks: { 
+              where: { isActive: true },
+              select: {
+                id: true,
+                adultPrice: true,
+                childPrice: true,
+                mealPlan: { 
+                  select: { id: true, code: true, name: true, kind: true ,adult_price:true ,child_price:true,description:true } 
+                },
+              }
+            }
           },
         },
 

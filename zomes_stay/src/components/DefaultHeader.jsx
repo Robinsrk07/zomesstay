@@ -10,7 +10,7 @@ const DefaultHeader = () => {
  console.log("default Header")
  const navigate = useNavigate()
   return (
-    <header className="sticky top-0 z-50  bg-white">
+    <header className="sticky top-0 z-50  bg-white ">
       <div  className="h-20 pl-4 pt-4 sm:h-24 lg:h-[115px] lg:pl-8 lg:pt-8 flex items-center justify-between border border-b border-gray-200">
         <img src={Logo} alt="" className="w-30 md:w-60" onClick={()=>('/app/home')} />
         {/* Hamburger Icon for mobile */}

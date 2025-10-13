@@ -14,8 +14,7 @@ export default function Body() {
 
    const handleSearch = (params) => {
     setSearchParams(params);
-    // We'll pass these search params through the context or state management
-    // to be consumed by CardRow
+    
   };
    
   return (

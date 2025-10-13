@@ -35,6 +35,8 @@ const PropertyDetailsController = {
                             basePrice: true,
                             Occupancy: true,
                             extraBedCapacity: true,
+                            extraBedPriceAdult: true,
+                            extraBedPriceChild: true,
                             roomType: {
                                 select: { name: true }
                             },
@@ -66,6 +68,20 @@ const PropertyDetailsController = {
                                     } : undefined
                                 }
                             },
+                             baseMealPlan: { 
+                                select: { id: true, code: true, name: true, kind: true ,adult_price:true ,child_price:true,description:true , } 
+                                },
+                                mealPlanLinks: { 
+                                where: { isActive: true },
+                                select: {
+                                    id: true,
+                                    adultPrice: true,
+                                    childPrice: true,
+                                    mealPlan: { 
+                                    select: { id: true, code: true, name: true, kind: true ,adult_price:true ,child_price:true,description:true } 
+                                    },
+                                }
+                                },
                             rates: startDate && endDate ? {
                                 where: {
                                     date: {
@@ -107,11 +123,14 @@ const PropertyDetailsController = {
                         where: {
                             isDeleted: false,
                             isActive: true,
-                            dateFrom: {  lte: new Date(endDate).toISOString() },
-                            dateTo: { gte: new Date(startDate).toISOString() }
                         },
                         include: {
                             roomTypeLinks: true
+                        }
+                    },
+                    SpecialRateApplication:{
+                        where:{
+                            isActive: true,
                         }
                     },
                     MealPlan: {

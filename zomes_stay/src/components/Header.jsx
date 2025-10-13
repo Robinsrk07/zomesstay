@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from "react";
 import GuestSelectorPopup from "./GuestSelectorPopup";
+import RequestCallbackModal from "./RequestCallbackModal";
+import DateRangePicker from "./DateRangePicker";
 import Logo from "../assets/loginPage/logo.png";
 import { useNavigate } from "react-router-dom";
 import ErrorDialog from './ErrorDialog';
 import { useSearch } from '../context/SearchContext';
+import { Phone, Calendar } from 'lucide-react';
 
 const img = "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=1200&h=400&q=80";
 const img1 = "https://images.unsplash.com/photo-1449824913935-59a10b8d2000?auto=format&fit=crop&w=1200&h=400&q=80";
@@ -58,6 +61,8 @@ const Header = () => {
 
   // UI State
   const [showGuestSelector, setShowGuestSelector] = useState(false);
+  const [showCallbackModal, setShowCallbackModal] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   
@@ -122,6 +127,16 @@ const Header = () => {
     }));
   };
 
+  // Handle date range selection
+  const handleDateRangeSelect = ({ checkIn, checkOut }) => {
+    setSearchParams(prev => ({
+      ...prev,
+      checkIn: checkIn ? checkIn.toISOString().split('T')[0] : "",
+      checkOut: checkOut ? checkOut.toISOString().split('T')[0] : ""
+    }));
+    setDateRange([checkIn, checkOut]);
+  };
+
   // Slider controls
   const prev = () => setIdx((i) => (i - 1 + slides.length) % slides.length);
   const next = () => setIdx((i) => (i + 1) % slides.length);
@@ -142,7 +157,7 @@ const Header = () => {
   }, []);
 
   return (
-    <header className="relative text-white">
+    <header className=" relative text-white">
       {/* Slider area */}
       <div className="relative h-[260px] sm:h-[260px] md:h-[360px] lg:h-[460px]">
         {/* Slides */}
@@ -164,7 +179,15 @@ const Header = () => {
         <div className={`sticky top-0 z-40 h-14 sm:h-16 lg:h-[115px] px-4 lg:px-8 p-4
                         flex items-center justify-between transition-all duration-300
                         ${scrolled ? "bg-white text-gray-900 shadow-sm" : "bg-transparent text-white"}`}>
-          <img src={Logo} alt="" className="h-8 sm:h-9 lg:h-20 w-auto" />
+          {/* Left side - Logo and Phone */}
+          <div className="flex items-center gap-6">
+            <img src={Logo} alt="" className="h-8 sm:h-9 lg:h-20 w-auto" />
+            {/* Phone Number */}
+            <div className="flex items-center gap-2 text-white">
+              <Phone size={16} />
+              <span className="text-sm font-medium">+91 9167 928 471</span>
+            </div>
+          </div>
 
           {/* Desktop navigation */}
           <div className="hidden md:flex gap-4 items-center pr-4 lg:pr-16">
@@ -217,32 +240,28 @@ const Header = () => {
         </div>
 
         {/* Search section */}
-        <div className="absolute bottom-8 left-4 right-4 z-30 flex justify-center pointer-events-auto">
+        <div className="absolute -bottom-12 left-4 right-4 z-30 flex justify-center pointer-events-auto">
           {/* Desktop/Tablet Search Bar */}
-          <div className="hidden sm:flex bg-white w-full max-w-4xl mx-auto flex-row items-center gap-3 p-3 rounded-lg shadow-lg">
-            {/* Check-in Date */}
+          <div className="hidden sm:flex bg-white w-full max-w-4xl mx-auto flex-col rounded-lg shadow-lg">
+            {/* Main search row */}
+            <div className="flex flex-row items-center gap-3 p-3">
+            {/* Date Range Selector */}
             <div className="flex-1 min-w-0">
-              <div className="flex flex-col flex-1 min-w-[180px]">
-                <label className="block text-xs text-gray-500 mb-1">Check-in</label>
-                <input
-                  type="date"
-                  value={searchParams.checkIn}
-                  onChange={(e) => handleDateChange('checkIn', e.target.value)}
-                  className="w-full h-11 px-3 py-2 rounded-md border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-700 text-sm md:text-base bg-gray-50"
-                />
-              </div>
-            </div>
-
-            {/* Check-out Date */}
-            <div className="flex-1 min-w-0">
-              <div className="flex flex-col flex-1 min-w-[180px]">
-                <label className="block text-xs text-gray-500 mb-1">Check-out</label>
-                <input
-                  type="date"
-                  value={searchParams.checkOut}
-                  onChange={(e) => handleDateChange('checkOut', e.target.value)}
-                  className="w-full h-11 px-3 py-2 rounded-md border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-700 text-sm md:text-base bg-gray-50"
-                />
+              <div className="flex flex-col flex-1 min-w-[200px]">
+                <label className="block text-xs text-gray-500 mb-1">Dates</label>
+                <button
+                  type="button"
+                  onClick={() => setShowDatePicker(true)}
+                  className="w-full h-11 px-3 py-2 rounded-md border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-700 text-sm md:text-base bg-gray-50 text-left flex items-center justify-between"
+                >
+                  <span>
+                    {searchParams.checkIn && searchParams.checkOut 
+                      ? `${new Date(searchParams.checkIn).toLocaleDateString()} - ${new Date(searchParams.checkOut).toLocaleDateString()}`
+                      : "Select dates"
+                    }
+                  </span>
+                  <Calendar size={16} className="text-gray-400" />
+                </button>
               </div>
             </div>
 
@@ -282,6 +301,23 @@ const Header = () => {
             >
               SEARCH
             </button>
+            </div>
+
+            {/* Request Callback Section */}
+            <div className="bg-rose-50 border-t border-rose-100 px-4 py-3 rounded-b-lg">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-700">
+                  Finding your ideal vacation spot should be easy, we're here to help!
+                </p>
+                <button
+                  onClick={() => setShowCallbackModal(true)}
+                  className="flex items-center gap-2 text-rose-600 hover:text-rose-700 font-medium text-sm transition-colors"
+                >
+                  <Phone size={16} />
+                  Request Callback
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Mobile Search */}
@@ -352,6 +388,12 @@ const Header = () => {
         isOpen={!!error}
         message={error}
         onClose={() => setError(null)}
+      />
+
+      {/* Request Callback Modal */}
+      <RequestCallbackModal
+        isOpen={showCallbackModal}
+        onClose={() => setShowCallbackModal(false)}
       />
     </header>
   );

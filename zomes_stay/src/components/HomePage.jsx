@@ -13,30 +13,43 @@ const HomePage = () => {
     <div className="w-full flex flex-col justify-center items-center overflow-hidden">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 w-full px-4 md:px-16 py-8">
-        <div className="flex flex-col gap-4">
-          <h2 className="text-[18px] lg:text-[36px] font-bold text-[#484848]">
-            Latest on the <br /> Property Listing
-          </h2>
-          <hr className="h-2 w-40 bg-blue-800 border-0 rounded" />
-        </div>
+        
 
-        <div className="flex flex-col items-start gap-2">
+        <div className="flex flex-col items-start gap-2 w-full pt-8 md:w-auto">
           <label htmlFor="locationSelect" className="text-xs lg:text-xl text-gray-400 font-medium">
-            Select location
+            Pick a Destination
           </label>
-          <select
-            className="border border-gray-300 text-gray-600 w-[250px] lg:w-[400px] h-[40px] rounded-md text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 px-2"
-          >
-            <option className="text-sm text-gray-400" value="">
-              -- Choose a location --
-            </option>
-            <option className="text-sm text-gray-600" value="nyc">
-              New York City
-            </option>
-            <option className="text-sm text-gray-600" value="la">
-              Los Angeles
-            </option>
-          </select>
+          
+          {/* Scrollable Location List */}
+          <div className="flex overflow-x-auto gap-4 pb-2 w-full md:w-auto">
+            {[
+              { name: "Lonavala", icon: "🏔️" },
+              { name: "Karjat", icon: "🌄" },
+              { name: "Kasauli", icon: "🏔️" },
+              { name: "Ooty", icon: "🌿" },
+              { name: "Mussoorie", icon: "⛰️" },
+              { name: "Panchgani", icon: "🌺" },
+              { name: "Udaipur", icon: "🏰" },
+              { name: "Goa", icon: "🏖️" },
+              { name: "Mumbai", icon: "🌊" },
+              { name: "Pune", icon: "🌆" },
+              { name: "Bangalore", icon: "🌳" },
+              { name: "Hyderabad", icon: "🏛️" }
+            ].map((location, index) => (
+              <button
+                key={index}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-full hover:bg-blue-50 hover:border-blue-300 transition-colors whitespace-nowrap shadow-sm"
+              >
+                <span className="text-lg">{location.icon}</span>
+                <span className="text-sm font-medium text-gray-700">{location.name}</span>
+              </button>
+            ))}
+          </div>
+          
+          <button className="text-xs lg:text-sm text-blue-600 hover:text-blue-800 font-medium mt-2 flex items-center gap-1">
+            <span>📍</span>
+            Show nearby locations
+          </button>
         </div>
       </div>
 

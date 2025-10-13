@@ -5,7 +5,7 @@ import {specialRateService,propertyService,inventoryService,specialRateApplicati
 import { toast } from 'react-toastify';
 
 const PMSInventory = () => {
-  const [propertyId] = useState('5cb51057-e7e4-4db1-bbf3-0f879f6229d5');
+  const [propertyId] = useState('232c850f-4525-4383-a829-b5d391f8cb03');
   const [availabilityData, setAvailabilityData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -123,7 +123,7 @@ const handleApplySpecialRate = async (rate)=>{
      setAppliedSpecialRates(data);
    } catch (error) {
      console.error('Error fetching applied special rates:', error);
-     toast.error('Failed to load applied special rates');
+    // toast.error('Failed to load applied special rates');
    }
  }, []);
 
@@ -518,28 +518,28 @@ const handleApplySpecialRate = async (rate)=>{
       const response = await specialRateApplicationService.createSpecialRateApplication(payload);
 
       if (response.data.success) {
-        // Update local state immediately for visual feedback
-        const newAppliedRates = { ...appliedSpecialRates };
-        datesToApply.forEach(date => {
-          newAppliedRates[date] = {
-            rateId: rate.id,
-            rateName: rate.name,
-            rateType: rate.type,
-            rateValue: rate.value,
-            color: rate.color,
-            bgColor: rate.bgColor,
-            borderColor: rate.borderColor,
-            appliedAt: new Date().toISOString()
-          };
-        });
-        
-        setAppliedSpecialRates(newAppliedRates);
-        setShowSpecialRateToast(false);
-        setSelectedDateRange([]);
-        setSelectedDate(null);
-        setMobileSelectedDates([]);
-        setIsMobileMultiSelect(false);
-        
+      // Update local state immediately for visual feedback
+      const newAppliedRates = { ...appliedSpecialRates };
+      datesToApply.forEach(date => {
+        newAppliedRates[date] = {
+          rateId: rate.id,
+          rateName: rate.name,
+          rateType: rate.type,
+          rateValue: rate.value,
+          color: rate.color,
+          bgColor: rate.bgColor,
+          borderColor: rate.borderColor,
+          appliedAt: new Date().toISOString()
+        };
+      });
+      
+      setAppliedSpecialRates(newAppliedRates);
+      setShowSpecialRateToast(false);
+      setSelectedDateRange([]);
+      setSelectedDate(null);
+      setMobileSelectedDates([]);
+      setIsMobileMultiSelect(false);
+      
         // Show appropriate success message
         const successMessage = dateFrom === dateTo 
           ? `Applied "${rate.name}" for ${formattedDateFrom}` 
@@ -1265,7 +1265,7 @@ const handleApplySpecialRate = async (rate)=>{
                                       {dayInfo.data[selectedRoomType].originalPrice && 
                                        dayInfo.data[selectedRoomType].originalPrice !== dayInfo.data[selectedRoomType].finalPrice && (
                                         <div className="text-xs text-gray-500 line-through">
-                                          ₹{Number(dayInfo.data[selectedRoomType].originalPrice).toLocaleString()}
+                                        ₹{Number(dayInfo.data[selectedRoomType].originalPrice).toLocaleString()}
                                         </div>
                                       )}
                                       
@@ -1655,29 +1655,29 @@ const handleApplySpecialRate = async (rate)=>{
                     </button>
                   </div>
                 )}
-
+            
             <div className="space-y-2 max-h-60 overflow-y-auto">
               {transformedSpecialRates.length > 0 ? (
                 transformedSpecialRates.map((rate) => (
-                  <button
-                    key={rate.id}
-                    onClick={() => applySpecialRate(rate)}
-                    className="w-full text-left p-3 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div 
-                        className="w-3 h-3 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: rate.color }}
-                      ></div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm text-gray-900">{rate.name}</div>
-                        <div className="text-xs text-gray-500 truncate">{rate.description}</div>
+                <button
+                  key={rate.id}
+                  onClick={() => applySpecialRate(rate)}
+                  className="w-full text-left p-3 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors"
+                >
+                  <div className="flex items-center space-x-3">
+                    <div 
+                      className="w-3 h-3 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: rate.color }}
+                    ></div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm text-gray-900">{rate.name}</div>
+                      <div className="text-xs text-gray-500 truncate">{rate.description}</div>
                         <div className="text-xs text-gray-400 mt-1">
                           {rate.kind === 'offer' ? '📢 Discount' : '🔥 Peak Rate'}
                         </div>
-                      </div>
                     </div>
-                  </button>
+                  </div>
+                </button>
                 ))
               ) : (
                 <div className="text-center py-4 text-gray-500 text-sm">

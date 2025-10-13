@@ -336,7 +336,7 @@ model PropertyRoomType {
   propertyId           String   @db.Char(36)
   roomTypeId           String   @db.Char(36)
   basePrice            Decimal  @db.Decimal(10, 2)
-  singleoccupancyprice Decimal  @db.Decimal(10, 2) // Add this field
+  singleoccupancyprice Decimal  @db.Decimal(10, 2)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
   isDeleted            Boolean  @default(false)
@@ -348,8 +348,14 @@ model PropertyRoomType {
   extraBedPriceChild  Decimal @default(0) @db.Decimal(10, 2)
   extraBedPriceInfant Decimal @default(0) @db.Decimal(10, 2)
 
-  property               Property                 @relation(fields: [propertyId], references: [id])
-  roomType               RoomType                 @relation(fields: [roomTypeId], references: [id])
+  // Included (default) meal plan for this room type (optional)
+  baseMealPlanId String?   @db.Char(36)
+  baseMealPlan   MealPlan? @relation(fields: [baseMealPlanId], references: [id])
+
+  property               Property                   @relation(fields: [propertyId], references: [id])
+  roomType               RoomType                   @relation(fields: [roomTypeId], references: [id])
+  // Available meal plans for this room type with optional overrides
+  mealPlanLinks          PropertyRoomTypeMealPlan[]
   rooms                  Room[]
   rates                  RateCalendar[]
   bookings               Booking[]
@@ -490,10 +496,31 @@ model MealPlan {
   isDeleted   Boolean      @default(false)
   propertyId  String       @default("some-default-property-id")
 
-  bookings Booking[]
-  property Property  @relation(fields: [propertyId], references: [id])
+  bookings         Booking[]
+  property         Property                   @relation(fields: [propertyId], references: [id])
+  roomTypeLinks    PropertyRoomTypeMealPlan[]
+  PropertyRoomType PropertyRoomType[]
 
   @@index([isDeleted])
+}
+
+// Join table: room-type specific meal plans and optional override prices
+model PropertyRoomTypeMealPlan {
+  id                 String   @id @default(uuid()) @db.Char(36)
+  propertyRoomTypeId String   @db.Char(36)
+  mealPlanId         String   @db.Char(36)
+  adultPrice         Decimal? @db.Decimal(10, 2) // null => use MealPlan.adult_price
+  childPrice         Decimal? @db.Decimal(10, 2) // null => use MealPlan.child_price
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  propertyRoomType PropertyRoomType @relation(fields: [propertyRoomTypeId], references: [id], onDelete: Cascade)
+  mealPlan         MealPlan         @relation(fields: [mealPlanId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyRoomTypeId, mealPlanId])
+  @@index([propertyRoomTypeId])
+  @@index([mealPlanId])
 }
 
 /**
