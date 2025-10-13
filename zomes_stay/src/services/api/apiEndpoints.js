@@ -1,5 +1,5 @@
 // Base API URL
-export const API_BASE_URL = 'https://zomesstay.onrender.com';
+export const API_BASE_URL = 'http://13.217.200.245';
 
 // Base API paths
 export const API_BASE = '/api';
