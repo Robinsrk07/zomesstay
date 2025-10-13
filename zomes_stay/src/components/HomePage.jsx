@@ -58,60 +58,14 @@ const HomePage = () => {
         <CardRow searchParams={searchParams} />
       </div>
 
-      {/* Banner Image */}
-      <div className="px-4 md:px-16 py-8 w-full">
-        <img src={img2} alt="" className="w-full h-[200px] md:h-[400px] rounded-lg object-cover" />
-      </div>
+     
 
-      {/* Featured Properties Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 w-full px-4 md:px-16 py-8">
-        <div className="flex flex-col gap-4">
-          <h2 className="text-[18px] lg:text-[36px] font-bold text-[#484848]">
-            Featured Properties <br /> on our Listing
-          </h2>
-          <hr className="h-2 w-40 bg-blue-800 border-0 rounded" />
-        </div>
-        <button className="bg-[#004AAD] text-white h-[40px] w-[140px] text-sm rounded-2xl hover:bg-[#003A8C] transition-colors">
-          Discover More
-        </button>
-      </div>
+     
       
-      {/* FeatureCardRow */}
-      <div className="w-full">
-        <FeatureCardRow />
-      </div>
+  
 
-      {/* Another Banner */}
-      <div className="px-4 md:px-16 py-8 w-full">
-        <img src={banner} alt="" className="w-full h-auto object-cover rounded-lg" />
-      </div>
 
-      {/* About Section */}
-      <div className="w-full flex flex-col md:flex-row justify-between gap-8 px-4 md:px-16 py-8">
-        <div className="w-full md:w-[60%] flex flex-col gap-6">
-          <h1 className="font-bold text-[24px] lg:text-[36px] text-[#484848]">
-            Discover More About <br />Zomestay
-          </h1>  
-          <hr className="h-2 w-40 bg-blue-800 border-0 rounded" />
-          <p className="text-[#484848] text-[14px] lg:text-[16px] leading-relaxed">
-            Zomestay isn't a widely recognized brand or term, so I couldn't find any reliable information about a company or concept by that name. If you're referring to something specific—like a travel service, startup, or homestay platform—could you share a bit more context or clarify what "Zomestay" is? That would help me find the right information or craft a tailored description for you.
-          </p>  
-          <div className="flex flex-row gap-6 mt-4">
-            <button className="text-[#004AAD] text-[15px] font-bold hover:underline">
-              Ask A Question
-            </button>
-            <button className="text-[#004AAD] text-[15px] font-bold hover:underline">
-              Find A Property
-            </button>
-          </div>
-          <button className="bg-[#004AAD] text-white h-[40px] w-[140px] text-sm rounded-2xl mt-4 hover:bg-[#003A8C] transition-colors">
-            Discover More
-          </button>
-        </div>    
-        <div className="w-full md:w-[40%] flex justify-center md:justify-end">
-          <img src={img1} alt="" className="w-full max-w-[400px] h-[300px] md:h-[400px] object-cover rounded-2xl" />
-        </div>
-      </div>
+      
     </div>
   );
 };

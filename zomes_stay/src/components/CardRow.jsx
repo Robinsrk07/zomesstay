@@ -100,7 +100,7 @@ export default function CardRow() {
                 key={property.id || idx}
                 onClick={() => navigate(`/app/properties/${property.id}`)}
                 className="
-                  flex-none w-[280px] sm:w-full cursor-pointer
+                  flex-none w-[280px] sm:w-full cursor-pointer shadow-lg rounded-xl
                   sm:flex-initial transition-transform hover:scale-105
                 "
               >

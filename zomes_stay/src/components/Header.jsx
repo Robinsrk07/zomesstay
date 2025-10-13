@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import GuestSelectorPopup from "./GuestSelectorPopup";
 import RequestCallbackModal from "./RequestCallbackModal";
 import DateRangePicker from "./DateRangePicker";
+import AgentLoginModal from "./AgentLoginModal";
+import AgentSignupModal from "./AgentSignupModal";
 import Logo from "../assets/loginPage/logo.png";
 import { useNavigate } from "react-router-dom";
 import ErrorDialog from './ErrorDialog';
@@ -63,6 +65,8 @@ const Header = () => {
   const [showGuestSelector, setShowGuestSelector] = useState(false);
   const [showCallbackModal, setShowCallbackModal] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showAgentLogin, setShowAgentLogin] = useState(false);
+  const [showAgentSignup, setShowAgentSignup] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   
@@ -191,11 +195,17 @@ const Header = () => {
 
           {/* Desktop navigation */}
           <div className="hidden md:flex gap-4 items-center pr-4 lg:pr-16">
-            <button className="bg-[#004AAD] text-white text-xs px-6 py-2 rounded-full font-semibold hover:bg-[#003080]">
-              List Properties
+            <button 
+              onClick={() => setShowAgentLogin(true)}
+              className="bg-[#004AAD] text-white text-xs px-6 py-2 rounded-full font-semibold hover:bg-[#003080] transition-colors"
+            >
+              Agent Login
             </button>
-            <button className="bg-[#004AAD] text-white text-xs px-6 py-2 rounded-full font-semibold hover:bg-[#003080]">
-              Become a Host
+            <button 
+              onClick={() => setShowAgentSignup(true)}
+              className="bg-[#004AAD] text-white text-xs px-6 py-2 rounded-full font-semibold hover:bg-[#003080] transition-colors"
+            >
+              Agent Sign Up
             </button>
             <button 
               className="bg-white border border-gray-200 shadow-lg w-20 h-10 flex items-center justify-center rounded-full"
@@ -240,7 +250,7 @@ const Header = () => {
         </div>
 
         {/* Search section */}
-        <div className="absolute -bottom-12 left-4 right-4 z-30 flex justify-center pointer-events-auto">
+        <div className="absolute -bottom-16 left-4 right-4 z-30 flex justify-center pointer-events-auto">
           {/* Desktop/Tablet Search Bar */}
           <div className="hidden sm:flex bg-white w-full max-w-4xl mx-auto flex-col rounded-lg shadow-lg">
             {/* Main search row */}
@@ -371,13 +381,31 @@ const Header = () => {
       {/* Mobile menu */}
       {menuOpen && (
         <div className="md:hidden bg-white text-gray-900 shadow-lg px-6 py-6 pb-4 flex flex-col gap-4">
-          <button className="bg-[#004AAD] text-white text-xs h-10 rounded-full">
-            List Properties
+          <button 
+            onClick={() => {
+              setShowAgentLogin(true);
+              setMenuOpen(false);
+            }}
+            className="bg-[#004AAD] text-white text-xs h-10 rounded-full hover:bg-[#003080] transition-colors"
+          >
+            Agent Login
           </button>
-          <button className="bg-[#004AAD] text-white text-xs h-10 rounded-full">
-            Become a Host
+          <button 
+            onClick={() => {
+              setShowAgentSignup(true);
+              setMenuOpen(false);
+            }}
+            className="bg-[#004AAD] text-white text-xs h-10 rounded-full hover:bg-[#003080] transition-colors"
+          >
+            Agent Sign Up
           </button>
-          <button className="border border-gray-200 text-xs h-10 rounded-full">
+          <button 
+            onClick={() => {
+              navigate('/app/user_profile');
+              setMenuOpen(false);
+            }}
+            className="border border-gray-200 text-xs h-10 rounded-full hover:bg-gray-50 transition-colors"
+          >
             Profile
           </button>
         </div>
@@ -394,6 +422,26 @@ const Header = () => {
       <RequestCallbackModal
         isOpen={showCallbackModal}
         onClose={() => setShowCallbackModal(false)}
+      />
+
+      {/* Agent Login Modal */}
+      <AgentLoginModal
+        isOpen={showAgentLogin}
+        onClose={() => setShowAgentLogin(false)}
+        onSwitchToSignup={() => {
+          setShowAgentLogin(false);
+          setShowAgentSignup(true);
+        }}
+      />
+
+      {/* Agent Signup Modal */}
+      <AgentSignupModal
+        isOpen={showAgentSignup}
+        onClose={() => setShowAgentSignup(false)}
+        onSwitchToLogin={() => {
+          setShowAgentSignup(false);
+          setShowAgentLogin(true);
+        }}
       />
     </header>
   );
