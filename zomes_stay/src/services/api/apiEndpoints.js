@@ -1,5 +1,5 @@
 // Base API URL
-export const API_BASE_URL = 'http://13.217.200.245';
+export const API_BASE_URL = 'http://54.172.53.96:5000';
 
 // Base API paths
 export const API_BASE = '/api';

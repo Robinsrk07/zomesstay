@@ -4,6 +4,7 @@ import RequestCallbackModal from "./RequestCallbackModal";
 import DateRangePicker from "./DateRangePicker";
 import AgentLoginModal from "./AgentLoginModal";
 import AgentSignupModal from "./AgentSignupModal";
+import MobileSearchModal from "./MobileSearchModal";
 import Logo from "../assets/loginPage/logo.png";
 import { useNavigate } from "react-router-dom";
 import ErrorDialog from './ErrorDialog';
@@ -67,6 +68,7 @@ const Header = () => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showAgentLogin, setShowAgentLogin] = useState(false);
   const [showAgentSignup, setShowAgentSignup] = useState(false);
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   
@@ -128,6 +130,14 @@ const Header = () => {
       children,
       infants,
       rooms
+    }));
+  };
+
+  // Update search params for mobile modal
+  const updateSearchParams = (updates) => {
+    setSearchParams(prev => ({
+      ...prev,
+      ...updates
     }));
   };
 
@@ -258,7 +268,7 @@ const Header = () => {
             {/* Date Range Selector */}
             <div className="flex-1 min-w-0">
               <div className="flex flex-col flex-1 min-w-[200px]">
-                <label className="block text-xs text-gray-500 mb-1">Dates</label>
+                <label className="block text-xs text-gray-500 mb-1">Check In & Out</label>
                 <button
                   type="button"
                   onClick={() => setShowDatePicker(true)}
@@ -332,17 +342,12 @@ const Header = () => {
 
           {/* Mobile Search */}
           <div className="flex sm:hidden bg-white w-full max-w-xs mx-auto p-2 rounded-full shadow-md">
-            <input
-              type="text"
-              placeholder="Search for a property"
-              className="flex-1 px-4 py-2 rounded-full border-none focus:outline-none text-gray-700 text-base bg-transparent"
-              style={{ boxShadow: "none" }}
-            />
-            <button 
-              onClick={handleSearchClick}
-              className="ml-2 bg-[#004AAD] text-white px-4 py-2 rounded-full font-semibold text-base"
+            <button
+              onClick={() => setShowMobileSearch(true)}
+              className="flex-1 px-4 py-2 rounded-full border-none focus:outline-none text-gray-500 text-base bg-transparent text-left flex items-center justify-between"
             >
-              Go
+              <span>Search for a property</span>
+              <Calendar size={16} className="text-gray-400" />
             </button>
           </div>
         </div>
@@ -378,38 +383,74 @@ const Header = () => {
         )}
       </div>
 
-      {/* Mobile menu */}
-      {menuOpen && (
-        <div className="md:hidden bg-white text-gray-900 shadow-lg px-6 py-6 pb-4 flex flex-col gap-4">
-          <button 
-            onClick={() => {
-              setShowAgentLogin(true);
-              setMenuOpen(false);
-            }}
-            className="bg-[#004AAD] text-white text-xs h-10 rounded-full hover:bg-[#003080] transition-colors"
-          >
-            Agent Login
-          </button>
-          <button 
-            onClick={() => {
-              setShowAgentSignup(true);
-              setMenuOpen(false);
-            }}
-            className="bg-[#004AAD] text-white text-xs h-10 rounded-full hover:bg-[#003080] transition-colors"
-          >
-            Agent Sign Up
-          </button>
-          <button 
-            onClick={() => {
-              navigate('/app/user_profile');
-              setMenuOpen(false);
-            }}
-            className="border border-gray-200 text-xs h-10 rounded-full hover:bg-gray-50 transition-colors"
-          >
-            Profile
-          </button>
+      {/* Mobile Navigation Drawer */}
+      <div className={`fixed inset-0 z-50 md:hidden transition-opacity duration-300 ${menuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+        {/* Backdrop */}
+        <div 
+          className="absolute inset-0 bg-black/50"
+          onClick={() => setMenuOpen(false)}
+        />
+        
+        {/* Side Menu */}
+        <div className={`absolute left-0 top-0 h-full w-80 max-w-[85vw] bg-white shadow-2xl transform transition-transform duration-300 ${menuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+          {/* Header */}
+          <div className="flex items-center justify-between p-6 border-b border-gray-200">
+            <img src={Logo} alt="" className="h-8 w-auto" />
+            <button
+              onClick={() => setMenuOpen(false)}
+              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            >
+              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          
+          {/* Navigation Items */}
+          <div className="p-6 space-y-4">
+            <button 
+              onClick={() => {
+                setShowAgentLogin(true);
+                setMenuOpen(false);
+              }}
+              className="w-full bg-[#004AAD] text-white text-sm h-12 rounded-lg hover:bg-[#003080] transition-colors font-semibold flex items-center justify-center"
+            >
+              Agent Login
+            </button>
+            
+            <button 
+              onClick={() => {
+                setShowAgentSignup(true);
+                setMenuOpen(false);
+              }}
+              className="w-full bg-[#004AAD] text-white text-sm h-12 rounded-lg hover:bg-[#003080] transition-colors font-semibold flex items-center justify-center"
+            >
+              Agent Sign Up
+            </button>
+            
+            <button 
+              onClick={() => {
+                navigate('/app/user_profile');
+                setMenuOpen(false);
+              }}
+              className="w-full border border-gray-300 text-gray-700 text-sm h-12 rounded-lg hover:bg-gray-50 transition-colors font-semibold flex items-center justify-center"
+            >
+              Profile
+            </button>
+          </div>
+          
+          {/* Contact Info */}
+          <div className="absolute bottom-6 left-6 right-6">
+            <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
+              <Phone size={20} className="text-gray-600" />
+              <div>
+                <p className="text-sm font-medium text-gray-900">Need Help?</p>
+                <p className="text-sm text-gray-600">+91 9167 928 471</p>
+              </div>
+            </div>
+          </div>
         </div>
-      )}
+      </div>
 
       {/* Error Dialog */}
       <ErrorDialog
@@ -442,6 +483,25 @@ const Header = () => {
           setShowAgentSignup(false);
           setShowAgentLogin(true);
         }}
+      />
+
+      {/* Date Range Picker Modal */}
+      <DateRangePicker
+        isOpen={showDatePicker}
+        onClose={() => setShowDatePicker(false)}
+        onDateSelect={handleDateRangeSelect}
+        selectedDates={{
+          checkIn: searchParams.checkIn ? new Date(searchParams.checkIn) : null,
+          checkOut: searchParams.checkOut ? new Date(searchParams.checkOut) : null
+        }}
+      />
+
+      {/* Mobile Search Modal */}
+      <MobileSearchModal
+        isOpen={showMobileSearch}
+        onClose={() => setShowMobileSearch(false)}
+        searchParams={searchParams}
+        onUpdateSearchParams={updateSearchParams}
       />
     </header>
   );

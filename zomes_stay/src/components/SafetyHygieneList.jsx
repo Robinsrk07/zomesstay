@@ -41,11 +41,12 @@ export default function SafetyHygieneList({ items }) {
         {/* Simple "See more" link in bottom right */}
         {hasMoreItems && (
           <div className="flex justify-end mt-3">
+           
             <button
               onClick={() => setShowModal(true)}
-              className="text-sm text-blue-600 hover:text-blue-800 underline"
+              className="mt-3 w-full py-2.5 text-sm font-semibold text-blue-600 bg-white border border-blue-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-all"
             >
-              See more
+              View All Safety features
             </button>
           </div>
         )}

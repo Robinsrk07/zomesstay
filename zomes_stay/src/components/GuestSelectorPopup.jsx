@@ -47,7 +47,7 @@ const GuestSelectorPopup = ({ adults, setAdults, children, setChildren, infants,
             <div className="text-xs text-gray-500">Age 3-12 years</div>
           </div>
           <div className="flex items-center gap-2">
-            <button className="border rounded w-10 h-10 flex items-center justify-center text-xl" onClick={() => setChildren(Math.max(0, children - 1))}>-</button>
+            <button className="border border-gray-500 text-black rounded w-10 h-10 flex items-center justify-center text-xl" onClick={() => setChildren(Math.max(0, children - 1))}>-</button>
             <span className="w-8 text-center font-bold">{children.toString().padStart(2, '0')}</span>
             <button className="border rounded w-10 h-10 flex items-center justify-center text-xl" onClick={() => setChildren(children + 1)}>+</button>
           </div>

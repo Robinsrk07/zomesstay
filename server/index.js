@@ -26,6 +26,7 @@ const MealPlanRouter = require('./src/routes/adminRoutes/mealPlan.routes');
 const propertyDetailsRoute = require('./src/routes/userRoutes/propertyDetials.routes');
 const specialRateApplicationRoute = require('./src/routes/adminRoutes/specialRateApplication.routes');
 const PropertyRoomTypeRoute = require('./src/routes/adminRoutes/propertyRoomTypes.routes');
+const PropertycreateRoute = require('./src/routes/adminRoutes/propertycreation.routes');
 // Enable CORS
 app.use(cors({
   origin: ["http://localhost:5173", "https://zomesstay-web.onrender.com"],
@@ -52,6 +53,7 @@ app.use('/', MealPlanRouter);
 app.use('/', propertyDetailsRoute);
 app.use('/', specialRateApplicationRoute);
 app.use('/', PropertyRoomTypeRoute);
+app.use('/', PropertycreateRoute);
 
 
 

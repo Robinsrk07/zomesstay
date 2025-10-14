@@ -4,9 +4,14 @@
 import React, { useState } from "react";
 import Logo from "../assets/loginPage/e3b983f61b4444dcbddadacf89aaecac0378a185 (1).png";
 import { useNavigate } from "react-router-dom";
+import { Phone } from 'lucide-react';
+import AgentLoginModal from "./AgentLoginModal";
+import AgentSignupModal from "./AgentSignupModal";
 
 const DefaultHeader = () => {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showAgentLogin, setShowAgentLogin] = useState(false);
+  const [showAgentSignup, setShowAgentSignup] = useState(false);
  console.log("default Header")
  const navigate = useNavigate()
   return (
@@ -25,8 +30,18 @@ const DefaultHeader = () => {
         </button>
         {/* Desktop Buttons */}
         <div className="hidden md:flex gap-4 items-center pr-16">
-          <button className="bg-[#004AAD] text-white text-xs px-6 py-2 rounded-full font-semibold transition-colors hover:bg-[#003080]">List Properties</button>
-          <button className="bg-[#004AAD] text-white text-xs px-6 py-2 rounded-full font-semibold transition-colors hover:bg-[#003080]">Become a Host</button>
+          <button 
+            onClick={() => setShowAgentLogin(true)}
+            className="bg-[#004AAD] text-white text-xs px-6 py-2 rounded-full font-semibold transition-colors hover:bg-[#003080]"
+          >
+            Agent Login
+          </button>
+          <button 
+            onClick={() => setShowAgentSignup(true)}
+            className="bg-[#004AAD] text-white text-xs px-6 py-2 rounded-full font-semibold transition-colors hover:bg-[#003080]"
+          >
+            Agent Sign Up
+          </button>
           <button className="bg-white border border-gray-200 shadow-lg w-20 h-10 flex items-center justify-center rounded-full ml-2" onClick={()=>navigate('/app/user_profile')}>
          
 
@@ -43,14 +58,94 @@ const DefaultHeader = () => {
           </button>
         </div>
       </div> 
-      {/* Mobile Menu */}
-      {menuOpen && (
-        <div className="md:hidden bg-white shadow-lg px-6 pb-4 py-6 flex flex-col gap-4">
-          <div className="bg-[#004AAD] text-white text-xs w-full h-10 flex items-center justify-center rounded-4xl">List Properties</div>
-          <div className="bg-[#004AAD] text-white text-xs w-full h-10 flex items-center justify-center rounded-4xl">Book a host</div>
-          <div className="bg-white border border-gray-200 shadow text-xs w-full h-10 flex items-center justify-center rounded-4xl">Book a host</div>
+      {/* Mobile Navigation Drawer */}
+      <div className={`fixed inset-0 z-50 md:hidden transition-opacity duration-300 ${menuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+        {/* Backdrop */}
+        <div 
+          className="absolute inset-0 bg-black/50"
+          onClick={() => setMenuOpen(false)}
+        />
+        
+        {/* Side Menu */}
+        <div className={`absolute left-0 top-0 h-full w-80 max-w-[85vw] bg-white shadow-2xl transform transition-transform duration-300 ${menuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+          {/* Header */}
+          <div className="flex items-center justify-between p-6 border-b border-gray-200">
+            <img src={Logo} alt="" className="h-8 w-auto" />
+            <button
+              onClick={() => setMenuOpen(false)}
+              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            >
+              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          
+          {/* Navigation Items */}
+          <div className="p-6 space-y-4">
+            <button 
+              onClick={() => {
+                setShowAgentLogin(true);
+                setMenuOpen(false);
+              }}
+              className="w-full bg-[#004AAD] text-white text-sm h-12 rounded-lg hover:bg-[#003080] transition-colors font-semibold flex items-center justify-center"
+            >
+              Agent Login
+            </button>
+            
+            <button 
+              onClick={() => {
+                setShowAgentSignup(true);
+                setMenuOpen(false);
+              }}
+              className="w-full bg-[#004AAD] text-white text-sm h-12 rounded-lg hover:bg-[#003080] transition-colors font-semibold flex items-center justify-center"
+            >
+              Agent Sign Up
+            </button>
+            
+            <button 
+              onClick={() => {
+                navigate('/app/user_profile');
+                setMenuOpen(false);
+              }}
+              className="w-full border border-gray-300 text-gray-700 text-sm h-12 rounded-lg hover:bg-gray-50 transition-colors font-semibold flex items-center justify-center"
+            >
+              Profile
+            </button>
+          </div>
+          
+          {/* Contact Info */}
+          <div className="absolute bottom-6 left-6 right-6">
+            <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
+              <Phone size={20} className="text-gray-600" />
+              <div>
+                <p className="text-sm font-medium text-gray-900">Need Help?</p>
+                <p className="text-sm text-gray-600">+91 9167 928 471</p>
+              </div>
+            </div>
+          </div>
         </div>
-      )}
+      </div>
+
+      {/* Agent Login Modal */}
+      <AgentLoginModal
+        isOpen={showAgentLogin}
+        onClose={() => setShowAgentLogin(false)}
+        onSwitchToSignup={() => {
+          setShowAgentLogin(false);
+          setShowAgentSignup(true);
+        }}
+      />
+
+      {/* Agent Signup Modal */}
+      <AgentSignupModal
+        isOpen={showAgentSignup}
+        onClose={() => setShowAgentSignup(false)}
+        onSwitchToLogin={() => {
+          setShowAgentSignup(false);
+          setShowAgentLogin(true);
+        }}
+      />
     </header>
   );
 };

@@ -1,281 +1,222 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+function getToday() {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  return now;
+}
+
+function getMonthMatrix(year, month) {
+  const first = new Date(year, month, 1);
+  const last = new Date(year, month + 1, 0);
+  const matrix = [];
+  let week = [];
+  for (let i = 0; i < first.getDay(); i++) week.push(null);
+  for (let d = 1; d <= last.getDate(); d++) {
+    week.push(new Date(year, month, d));
+    if (week.length === 7) {
+      matrix.push(week);
+      week = [];
+    }
+  }
+  if (week.length) {
+    while (week.length < 7) week.push(null);
+    matrix.push(week);
+  }
+  return matrix;
+}
+
+function isSameDay(a, b) {
+  return (
+    a &&
+    b &&
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+function isInRange(day, start, end) {
+  if (!start || !end) return false;
+  return day > start && day < end;
+}
+
+function isBeforeDay(a, b) {
+  return a && b && a.getTime() < b.getTime();
+}
+
+function addMonths(date, n) {
+  const d = new Date(date);
+  d.setMonth(d.getMonth() + n);
+  return d;
+}
 
 const DateRangePicker = ({ 
   isOpen, 
   onClose, 
   onDateSelect, 
-  selectedDates = { checkIn: null, checkOut: null },
-  calendarData = {},
-  minDate = new Date()
+  selectedDates = { checkIn: null, checkOut: null }
 }) => {
   const [startDate, setStartDate] = useState(selectedDates.checkIn);
   const [endDate, setEndDate] = useState(selectedDates.checkOut);
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [nextMonth, setNextMonth] = useState(new Date(new Date().setMonth(new Date().getMonth() + 1)));
+  const [baseMonth, setBaseMonth] = useState(new Date());
+  const today = getToday();
 
-  // Get pricing for a specific date
-  const getDatePricing = (date) => {
-    if (!date) return null;
-    const dateKey = date.toISOString().split('T')[0];
-    return calendarData[dateKey]?.finalPrice || calendarData[dateKey]?.minRate;
-  };
-
-  // Format price for display
-  const formatPrice = (price) => {
-    if (!price) return null;
-    return `₹${Number(price).toLocaleString('en-IN')}`;
-  };
-
-  // Check if date is available
-  const isDateAvailable = (date) => {
-    const dateKey = date.toISOString().split('T')[0];
-    return calendarData[dateKey]?.isAvailable !== false;
-  };
-
-  // Get days in month
-  const getDaysInMonth = (date) => {
-    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-  };
-
-  // Get first day of month
-  const getFirstDayOfMonth = (date) => {
-    return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
-  };
-
-  // Generate calendar days
-  const generateCalendarDays = (month) => {
-    const days = [];
-    const daysInMonth = getDaysInMonth(month);
-    const firstDay = getFirstDayOfMonth(month);
-    
-    // Add empty cells for days before the first day of the month
-    for (let i = 0; i < firstDay; i++) {
-      days.push(null);
-    }
-    
-    // Add days of the month
-    for (let day = 1; day <= daysInMonth; day++) {
-      days.push(new Date(month.getFullYear(), month.getMonth(), day));
-    }
-    
-    return days;
-  };
-
-  // Handle date selection
-  const handleDateClick = (date) => {
-    if (!date || !isDateAvailable(date) || date < new Date(new Date().setHours(0, 0, 0, 0))) {
-      return;
-    }
+  function onDateClick(day) {
+    if (!day || isBeforeDay(day, today)) return;
 
     if (!startDate || (startDate && endDate)) {
-      // First selection or new selection
-      setStartDate(date);
+      setStartDate(day);
       setEndDate(null);
     } else if (startDate && !endDate) {
-      // Second selection
-      if (date > startDate) {
-        setEndDate(date);
+      if (isBeforeDay(day, startDate)) {
+        setStartDate(day);
+        setEndDate(startDate);
       } else {
-        setStartDate(date);
-        setEndDate(null);
+        setStartDate(startDate);
+        setEndDate(day);
       }
     }
-  };
-
-  // Handle month navigation
-  const handlePrevMonth = () => {
-    const newMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1);
-    setCurrentMonth(newMonth);
-    setNextMonth(new Date(newMonth.getFullYear(), newMonth.getMonth() + 1));
-  };
-
-  const handleNextMonth = () => {
-    const newMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1);
-    setCurrentMonth(newMonth);
-    setNextMonth(new Date(newMonth.getFullYear(), newMonth.getMonth() + 1));
-  };
-
-  // Clear selection
-  const handleClear = () => {
-    setStartDate(null);
-    setEndDate(null);
-  };
+  }
 
   // Handle close
   const handleClose = () => {
+    onDateSelect({
+      checkIn: startDate,
+      checkOut: endDate
+    });
     onClose();
   };
 
-  // Handle confirm selection
-  const handleConfirm = () => {
-    if (startDate && endDate) {
-      onDateSelect({
-        checkIn: startDate,
-        checkOut: endDate
-      });
-    }
-    onClose();
-  };
+  function renderMonth(monthDate) {
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const matrix = getMonthMatrix(year, month);
 
-  // Render calendar month
-  const renderMonth = (month, title) => {
-    const days = generateCalendarDays(month);
-    const today = new Date();
-    
     return (
-      <div className="flex-1">
-        <div className="text-center mb-2">
-          <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+      <div className="flex-1 min-w-[280px]">
+        <div className="text-center mb-3">
+          <span className="text-lg font-semibold text-gray-900">{MONTHS[month]} {year}</span>
         </div>
-        
-        {/* Days of week header */}
+
+        {/* Weekday row */}
         <div className="grid grid-cols-7 gap-1 mb-2">
-          {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(day => (
-            <div key={day} className="text-center text-xs font-medium text-gray-700 py-1">
-              {day}
-            </div>
+          {WEEKDAYS.map((d, i) => (
+            <div key={i} className="text-center text-xs font-medium text-gray-800 py-1">{d}</div>
           ))}
         </div>
-        
-        {/* Calendar grid */}
+
+        {/* Date grid */}
         <div className="grid grid-cols-7 gap-1">
-          {days.map((date, index) => {
-            if (!date) {
-              return <div key={index} className="h-12"></div>;
-            }
+          {matrix.flat().map((day, cidx) => {
+            if (!day) return <div key={cidx} className="h-12"></div>;
             
-            const price = getDatePricing(date);
-            const available = isDateAvailable(date);
-            const isToday = date.toDateString() === today.toDateString();
-            const isPast = date < new Date(today.setHours(0, 0, 0, 0));
-            const isSelected = date && startDate && (date.getTime() === startDate.getTime() || (endDate && date.getTime() === endDate.getTime()));
-            const isInRange = startDate && endDate && date > startDate && date < endDate;
-            const isStartDate = date && startDate && date.getTime() === startDate.getTime();
-            const isEndDate = date && endDate && date.getTime() === endDate.getTime();
-            
+            const isPast = isBeforeDay(day, today);
+            const isSelected =
+              (startDate && isSameDay(day, startDate)) ||
+              (endDate && isSameDay(day, endDate));
+            const isInSelectedRange = startDate && endDate && isInRange(day, startDate, endDate);
+            const isToday = isSameDay(day, today);
+
             return (
               <button
-                key={index}
-                onClick={() => handleDateClick(date)}
-                disabled={isPast || !available}
-                className={`
-                  relative h-12 flex flex-col items-center justify-center text-xs
-                  rounded-lg transition-colors
-                  ${isPast || !available ? 'text-gray-400 cursor-not-allowed bg-gray-100' : 'cursor-pointer hover:bg-blue-50'}
-                  ${isSelected ? 'bg-blue-600 text-white' : ''}
-                  ${isInRange ? 'bg-blue-100 text-blue-900' : ''}
-                  ${isStartDate ? 'bg-blue-600 text-white' : ''}
-                  ${isEndDate ? 'bg-blue-600 text-white' : ''}
-                  ${isToday && !isSelected ? 'border-2 border-blue-400 bg-blue-50' : ''}
-                  ${!isSelected && !isInRange && !isPast && available && !isToday ? 'bg-white text-gray-900' : ''}
-                `}
+                key={cidx}
+                type="button"
+                disabled={isPast}
+                onClick={() => onDateClick(day)}
+                className={
+                  "h-12 flex items-center justify-center rounded-lg text-sm transition-all border " +
+                  (isPast
+                    ? "bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200 "
+                    : isSelected
+                    ? "bg-[#003580] text-white font-semibold border-[#003580] "
+                    : isInSelectedRange
+                    ? "bg-blue-100 text-[#003580] border-blue-200 "
+                    : "hover:bg-blue-50 cursor-pointer border-gray-300 text-gray-800 ") +
+                  (isToday && !isSelected ? "ring-2 ring-[#003580] ring-opacity-60 border-[#003580] " : "")
+                }
               >
-                <span className={`font-medium ${isSelected ? 'text-white' : 'text-gray-900'}`}>
-                  {date.getDate()}
-                </span>
-                {price && available && (
-                  <span className={`text-xs leading-tight ${
-                    isSelected ? 'text-white' : 
-                    price < 1000 ? 'text-green-600' : 'text-gray-700'
-                  }`}>
-                    {formatPrice(price)}
-                  </span>
-                )}
+                <span className="font-medium">{day.getDate()}</span>
               </button>
             );
           })}
         </div>
       </div>
     );
-  };
+  }
 
   if (!isOpen) return null;
 
+  const monthsToShow = 2;
+  const visibleMonths = [];
+  for (let i = 0; i < monthsToShow; i++) {
+    visibleMonths.push(renderMonth(addMonths(baseMonth, i)));
+  }
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl max-w-4xl w-3/4 h-3/4 p-4 relative overflow-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-gray-900">Select dates</h2>
-          <button
-            onClick={handleClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <X size={20} />
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={handleClose}>
+      <div 
+        className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="sticky top-0 bg-white border-b border-gray-300 px-6 py-4 flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-gray-900">Select dates</h2>
+          <button onClick={handleClose} className="p-2 hover:bg-gray-100 rounded-full transition">
+            <X size={24} className="text-gray-600" />
           </button>
         </div>
 
-        {/* Month Navigation */}
-        <div className="flex items-center justify-center mb-4 gap-4">
-          <button
-            onClick={handlePrevMonth}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-          >
-            <ChevronLeft size={20} />
-          </button>
-          <div className="flex gap-6">
-            <h3 className="text-base font-semibold text-gray-900">
-              {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+        <div className="p-6">
+          {/* Navigation */}
+          <div className="flex items-center justify-center mb-6 gap-4">
+            <button
+              onClick={() => setBaseMonth(addMonths(baseMonth, -1))}
+              disabled={baseMonth.getMonth() === today.getMonth() && baseMonth.getFullYear() === today.getFullYear()}
+              className="p-2 rounded-full bg-blue-500  hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft size={24} />
+            </button>
+            <h3 className="text-lg font-semibold text-gray-900">
+              {MONTHS[baseMonth.getMonth()]} {baseMonth.getFullYear()}
             </h3>
-            <h3 className="text-base font-semibold text-gray-900">
-              {nextMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-            </h3>
+            <button
+              onClick={() => setBaseMonth(addMonths(baseMonth, 1))}
+              className="p-2 bg-blue-500 rounded-full hover:bg-gray-100"
+            >
+              <ChevronRight size={24} />
+            </button>
           </div>
-          <button
-            onClick={handleNextMonth}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-          >
-            <ChevronRight size={20} />
-          </button>
-        </div>
 
-        {/* Calendar Grid */}
-        <div className="flex gap-6 mb-4">
-          {renderMonth(currentMonth, currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }))}
-          {renderMonth(nextMonth, nextMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }))}
-        </div>
+          {/* Calendar months - Vertical stack */}
+          <div className="flex flex-col gap-8">
+            {visibleMonths}
+          </div>
 
-        {/* Selection Summary */}
-        {startDate && (
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Selected dates:</p>
-                <p className="font-medium text-gray-900">
-                  {startDate.toLocaleDateString()} 
-                  {endDate && ` - ${endDate.toLocaleDateString()}`}
-                </p>
-                {startDate && endDate && (
-                  <p className="text-sm text-gray-600">
-                    {Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24))} nights
-                  </p>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleClear}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-                >
-                  Clear
-                </button>
-                <button
-                  onClick={handleConfirm}
-                  disabled={!startDate || !endDate}
-                  className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Confirm
-                </button>
-              </div>
+          {/* Bottom Action Section */}
+          <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="flex items-center justify-between gap-3">
+              <button
+                onClick={() => {
+                  setStartDate(null);
+                  setEndDate(null);
+                }}
+                className="px-6 py-3 text-gray-700 hover:text-gray-900 transition-colors font-medium border border-gray-300 rounded-lg hover:bg-gray-100"
+              >
+                Clear
+              </button>
+              <button
+                onClick={handleClose}
+                disabled={!startDate || !endDate}
+                className="flex-1 py-3 bg-[#003580] text-white rounded-lg hover:bg-[#00224d] transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-lg border border-[#003580]"
+              >
+                Book Now
+              </button>
             </div>
           </div>
-        )}
-
-        {/* Footer */}
-        <div className="mt-4 text-center">
-          <p className="text-sm text-gray-700">
-            Select your check-in and check-out dates to see availability and pricing
-          </p>
         </div>
       </div>
     </div>
