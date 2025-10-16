@@ -6,11 +6,11 @@ const MealPlanController ={
     // Create a new meal plan
     createMealPlan: async (req, res) => {
         try {
-                const { name, description, adult_price, child_price, code, kind , propertyId } = req.body;
+                const { name, description,code, kind , propertyId } = req.body;
 
                 console.log(req.body)
                 const newMealPlan = await prisma.mealPlan.create({
-                    data: { name, description, adult_price, child_price, code, kind, propertyId},
+                    data: { name, description,  code, kind, propertyId},
                 });
                 res.status(201).json(newMealPlan);
               
@@ -53,8 +53,14 @@ const MealPlanController ={
     },
 
     getMealPlans: async (req, res) => {
+
+        const { propertyId } = req.query;
         try {
-            const mealPlans = await prisma.mealPlan.findMany();
+            const mealPlans = await prisma.mealPlan.findMany({
+                where: {
+                    propertyId: propertyId
+                }
+            });
             res.status(200).json(mealPlans);
         } catch (error) {
             console.error('Error fetching meal plans:', error);

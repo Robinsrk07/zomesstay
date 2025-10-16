@@ -7,6 +7,7 @@ export * from './api';
 export * from './auth';
 export * from './media';
 export * from './property';
+export { default as roomtypeMealPlanService } from './property/host/roomtypeMealPlan';
 
 
 

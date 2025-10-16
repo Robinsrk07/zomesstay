@@ -31,8 +31,6 @@ const MealPlan = () => {
     code: "",
     name: "",
     kind: "",
-    adult_price: "",
-    child_price: "",
     description: "",
   });
   const [formErrors, setFormErrors] = useState({});
@@ -71,23 +69,7 @@ const MealPlan = () => {
       errors.kind = "Plan type is required";
     }
 
-    if (!formData.adult_price) {
-      errors.adult_price = "Adult price is required";
-    } else if (!/^\d+(\.\d{1,2})?$/.test(formData.adult_price)) {
-      errors.adult_price = "Enter valid price (e.g., 1500.00)";
-    } else if (parseFloat(formData.adult_price) <= 0) {
-      errors.adult_price = "Price must be greater than 0";
-    }
-
-    if (!formData.child_price) {
-      errors.child_price = "Child price is required";
-    } else if (!/^\d+(\.\d{1,2})?$/.test(formData.child_price)) {
-      errors.child_price = "Enter valid price (e.g., 750.00)";
-    } else if (parseFloat(formData.child_price) <= 0) {
-      errors.child_price = "Price must be greater than 0";
-    } else if (parseFloat(formData.child_price) > parseFloat(formData.adult_price || 0)) {
-      errors.child_price = "Child price cannot exceed adult price";
-    }
+    
 
     if (formData.description.length > 200) {
       errors.description = "Description cannot exceed 200 characters";
@@ -101,7 +83,7 @@ const MealPlan = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const data = await mealPlanService.getMealPlans();
+      const data = await mealPlanService.getMealPlans(propertyId);
       setMealPlans(data);
       setFilteredPlans(data);
     } catch (e) {
@@ -145,8 +127,6 @@ const MealPlan = () => {
         code: "",
         name: "",
         kind: "",
-        adult_price: "",
-        child_price: "",
         description: ""
       });
     }
@@ -160,8 +140,6 @@ const MealPlan = () => {
       code: "",
       name: "",
       kind: "",
-      adult_price: "",
-      child_price: "",
       description: ""
     });
     setFormErrors({});
@@ -298,8 +276,6 @@ const MealPlan = () => {
                     <th className="text-left py-3 px-4 font-medium text-gray-900">Code</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-900">Name</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-900">Type</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Adult Price</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-900">Child Price</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-900">Description</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-900">Actions</th>
                   </tr>
@@ -323,12 +299,7 @@ const MealPlan = () => {
                           {getKindLabel(plan.kind)}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-green-600 font-medium">
-                        {formatPrice(plan.adult_price)}
-                      </td>
-                      <td className="py-3 px-4 text-green-600 font-medium">
-                        {formatPrice(plan.child_price)}
-                      </td>
+                      
                       <td className="py-3 px-4 text-gray-600 max-w-xs truncate">
                         {plan.description || "No description"}
                       </td>
@@ -440,7 +411,7 @@ const MealPlan = () => {
                 </div>
 
                 {/* Prices */}
-                <div className="grid grid-cols-2 gap-3">
+                {/* <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Adult Price (₹) <span className="text-red-500">*</span>
@@ -476,7 +447,7 @@ const MealPlan = () => {
                       <p className="text-red-500 text-xs mt-1">{formErrors.child_price}</p>
                     )}
                   </div>
-                </div>
+                </div> */}
 
                 {/* Description */}
                 <div>

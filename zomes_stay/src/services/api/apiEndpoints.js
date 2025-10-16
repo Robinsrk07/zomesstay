@@ -1,5 +1,6 @@
 // Base API URL
-export const API_BASE_URL = 'http://54.172.53.96:5000';
+// export const API_BASE_URL = 'http://54.172.53.96:5000';
+export const API_BASE_URL = 'http://localhost:5000';
 
 // Base API paths
 export const API_BASE = '/api';
@@ -33,7 +34,9 @@ export const PROPERTY = {
   PROPERTY_TYPE: '/property-types',
   PROPERTY_ROOM_TYPES:'/propertyroomtype',
   PROPERTY_DETAILS:'/propertiesDetials',
-  
+  PROPERTY_UTILS:'/properties_utils',
+  PROPERTY_VALIDATE:'/properties_validate',
+  PROPERTY_CREATE:'/properties',
 
 };
 
@@ -69,5 +72,6 @@ export const SPECIAL_RATE = {
 export const PROPERTY_ROOM_TYPES={
   PROPERTY_ROOM_TYPES:'/propertyRoomType'
 }
+
 
 // Add more endpoint categories as needed

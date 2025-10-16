@@ -761,12 +761,7 @@ getProperties: async (req, res) => {
           },
           select: {
             id: true,
-            basePrice: true,
             Occupancy: true,
-            extraBedCapacity: true,
-            extraBedPriceAdult: true,
-            extraBedPriceChild: true,
-            extraBedPriceInfant: true,
             roomType: { 
               select: { id: true, name: true, status: true } 
             },
@@ -788,17 +783,13 @@ getProperties: async (req, res) => {
                 },
               },
             },
-            baseMealPlan: { 
-              select: { id: true, code: true, name: true, kind: true ,adult_price:true ,child_price:true,description:true , } 
-            },
+           
             mealPlanLinks: { 
               where: { isActive: true },
               select: {
                 id: true,
-                adultPrice: true,
-                childPrice: true,
                 mealPlan: { 
-                  select: { id: true, code: true, name: true, kind: true ,adult_price:true ,child_price:true,description:true } 
+                  select: { id: true, code: true, name: true, kind: true ,description:true } 
                 },
               }
             }
@@ -839,8 +830,6 @@ getProperties: async (req, res) => {
             code: true,
             name: true,
             kind: true,
-            adult_price: true,
-            child_price: true,
           },
         },
 
@@ -1037,13 +1026,13 @@ searchProperties: async (req, res) => {
           facilities: { where: { isDeleted: false }, include: { facility: true } },
           safeties: { where: { isDeleted: false }, include: { safety: true } },
           roomTypes: { where: { isDeleted: false } },
-          rooms: {
-            where: { isDeleted: false },
-            include: {
-              roomType: true,
-              amenities: { where: { isDeleted: false }, include: { amenity: true } }
-            }
-          },
+          // rooms: {
+          //   where: { isDeleted: false },
+          //   include: {
+          //     roomType: true,
+          //     amenities: { where: { isDeleted: false }, include: { amenity: true } }
+          //   }
+          // },
           media: { where: { isDeleted: false } },
           ownerHost: true
         }
@@ -1062,8 +1051,13 @@ searchProperties: async (req, res) => {
       const { ownerHostId } = req.params;
 
       console.log('getPropertyByOwner ownerHostId:', ownerHostId);
-      const properties = await prisma.property.findFirst({
-        where: { ownerHostId: ownerHostId, isDeleted: false }
+      const properties = await prisma.property.findUnique({
+        where: {
+          ownerHostId_isDeleted: {
+            ownerHostId: ownerHostId,
+            isDeleted: false
+          }
+        }
       });
 
       res.json({ success: true, data: properties });
@@ -1376,8 +1370,7 @@ searchProperties: async (req, res) => {
     return res.status(400).json({ success: false, message: 'propertyId is required' });
   }
 
-  const { propertyRoomTypeId, name, spaceSqft, maxOccupancy, code, status, amenities } = req.body;
-  const amenityList = JSON.parse(amenities || "[]").filter(Boolean);
+  const { propertyRoomTypeId, name, spaceSqft, code, fromDate, toDate, images } = req.body;
 
   if (!propertyRoomTypeId) {
     return res.status(400).json({ success: false, message: 'propertyRoomTypeId is required' });
@@ -1385,8 +1378,8 @@ searchProperties: async (req, res) => {
   if (!name?.trim()) {
     return res.status(400).json({ success: false, message: 'Room name is required' });
   }
-  if (!maxOccupancy || isNaN(parseInt(maxOccupancy, 10)) || parseInt(maxOccupancy, 10) <= 0) {
-    return res.status(400).json({ success: false, message: 'maxOccupancy must be a positive integer' });
+  if (!fromDate || !toDate) {
+    return res.status(400).json({ success: false, message: 'From date and to date are required' });
   }
 
   try {
@@ -1406,52 +1399,57 @@ searchProperties: async (req, res) => {
       return res.status(404).json({ success: false, message: 'Property room type not found' });
     }
 
-    // ✅ Validate amenities
-    if (amenityList.length) {
-      const validAmenities = await prisma.amenity.findMany({
-        where: { id: { in: amenityList }, isDeleted: false },
-        select: { id: true },
-      });
-      const validAmenityIds = new Set(validAmenities.map((a) => a.id));
-      const invalidAmenities = amenityList.filter((id) => !validAmenityIds.has(id));
-      if (invalidAmenities.length) {
-        return res.status(400).json({
-          success: false,
-          message: `Invalid amenity IDs: ${invalidAmenities.join(', ')}`,
-        });
-      }
+    // ✅ Validate date range
+    const startDate = new Date(fromDate);
+    const endDate = new Date(toDate);
+    if (startDate >= endDate) {
+      return res.status(400).json({ success: false, message: 'From date must be before to date' });
     }
+  
 
-    // ✅ Process images
-    const filesByField = (req.files || []).reduce((acc, f) => {
-      (acc[f.fieldname] ||= []).push(f);
-      return acc;
-    }, {});
-    const roomImages = filesByField['images'] || [];
-    const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
-    const maxFileSize = 10 * 1024 * 1024;
+    // ✅ Process images (handle both file uploads and image names from frontend)
+    let roomImagesData = [];
+    
+    // If files are uploaded, process them
+    if (req.files && req.files.length > 0) {
+      const filesByField = (req.files || []).reduce((acc, f) => {
+        (acc[f.fieldname] ||= []).push(f);
+        return acc;
+      }, {});
+      const roomImages = filesByField['images'] || [];
+      const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+      const maxFileSize = 10 * 1024 * 1024;
 
-    for (const file of roomImages) {
-      if (!allowedImageTypes.includes(file.mimetype)) {
-        return res.status(400).json({
-          success: false,
-          message: `Invalid image type: ${file.mimetype}. Only JPEG, PNG, WEBP are allowed.`,
-        });
+      for (const file of roomImages) {
+        if (!allowedImageTypes.includes(file.mimetype)) {
+          return res.status(400).json({
+            success: false,
+            message: `Invalid image type: ${file.mimetype}. Only JPEG, PNG, WEBP are allowed.`,
+          });
+        }
+        if (file.size > maxFileSize) {
+          return res.status(400).json({
+            success: false,
+            message: `Image too large: ${file.originalname}. Max size is 10MB.`,
+          });
+        }
       }
-      if (file.size > maxFileSize) {
-        return res.status(400).json({
-          success: false,
-          message: `Image too large: ${file.originalname}. Max size is 10MB.`,
-        });
-      }
+
+      roomImagesData = roomImages.map((f, idx) => ({
+        url: fileToUrl(req, f),
+        caption: `Room Image ${idx + 1}`,
+        isFeatured: idx === 0,
+        order: idx,
+      }));
+    } else if (images && Array.isArray(images)) {
+      // If image names are provided from frontend (for future file upload implementation)
+      roomImagesData = images.map((imageName, idx) => ({
+        url: imageName, // This would be the uploaded file path/URL
+        caption: `Room Image ${idx + 1}`,
+        isFeatured: idx === 0,
+        order: idx,
+      }));
     }
-
-    const roomImagesData = roomImages.map((f, idx) => ({
-      url: fileToUrl(req, f),
-      caption: `Room Image ${idx + 1}`,
-      isFeatured: idx === 0,
-      order: idx,
-    }));
 
     // ✅ Create room
     const newRoom = await prisma.room.create({
@@ -1460,28 +1458,25 @@ searchProperties: async (req, res) => {
         name: name.trim(),
         code: code?.trim() || null,
         spaceSqft: spaceSqft ? parseInt(spaceSqft, 10) : null,
-        maxOccupancy: parseInt(maxOccupancy, 10),
         images: roomImagesData,
-        status: status || 'active',
-        amenities: {
-          create: amenityList.map((amenityId) => ({
-            amenity: { connect: { id: amenityId } },
-          })),
-        },
-      },
-      include: {
-        amenities: { where: { isDeleted: false }, include: { amenity: true } },
-      },
+        status: 'active',
+      }
     });
 
-    // ✅ Seed availability for 90 days
-    const today = new Date();
-    const daysToSeed = 90; // configurable
-    const availabilities = Array.from({ length: daysToSeed }).map((_, i) => ({
-      roomId: newRoom.id,
-      date: new Date(today.getFullYear(), today.getMonth(), today.getDate() + i),
-      minNights: 1,
-    }));
+    // ✅ Seed availability for the specified date range
+    const availabilities = [];
+    const currentDate = new Date(startDate);
+    
+    while (currentDate <= endDate) {
+      availabilities.push({
+        roomId: newRoom.id,
+        date: new Date(currentDate),
+        minNights: 1,
+        status: 'available',
+        isDeleted: false,
+      });
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
 
     await prisma.availability.createMany({
       data: availabilities,
@@ -1490,8 +1485,15 @@ searchProperties: async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Room added with availability seeded',
-      data: newRoom,
+      message: `Room added with availability seeded from ${fromDate} to ${toDate} (${availabilities.length} days)`,
+      data: {
+        room: newRoom,
+        availabilityCount: availabilities.length,
+        dateRange: {
+          from: fromDate,
+          to: toDate
+        }
+      },
     });
   } catch (err) {
     console.error('addRooms:', err);

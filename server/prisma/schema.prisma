@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -19,12 +19,6 @@ enum UserStatus {
 enum PropertyStatus {
   active
   blocked
-}
-
-enum ConflictPolicy {
-  override
-  skip
-  reject
 }
 
 enum RoomTypeStatus {
@@ -72,9 +66,9 @@ enum RoomAvailabilityStatus {
 }
 
 enum SpecialRateKind {
-  offer // discounts
-  peak // surcharges
-  custom // anything else / mixed
+  offer
+  peak
+  custom
 }
 
 enum PricingMode {
@@ -193,7 +187,7 @@ model User {
 model Amenity {
   id        String          @id @default(uuid()) @db.Char(36)
   name      String          @db.VarChar(100)
-  icon      String?         @db.Text // For SVG content or base64
+  icon      String?         @db.Text
   category  AmenityCategory @default(OTHER)
   isActive  Boolean         @default(true)
   createdAt DateTime        @default(now())
@@ -202,7 +196,6 @@ model Amenity {
 
   propertyLinks PropertyAmenity[]
   roomTypeLinks RoomTypeAmenity[]
-  roomLinks     RoomAmenity[]
 
   @@unique([name, isDeleted])
   @@index([isDeleted])
@@ -212,7 +205,7 @@ model Amenity {
 model Facility {
   id        String           @id @default(uuid()) @db.Char(36)
   name      String           @db.VarChar(100)
-  icon      String?          @db.Text // For SVG content or base64
+  icon      String?          @db.Text
   category  FacilityCategory @default(OTHER)
   isActive  Boolean          @default(true)
   createdAt DateTime         @default(now())
@@ -229,7 +222,7 @@ model Facility {
 model SafetyHygiene {
   id        String         @id @default(uuid()) @db.Char(36)
   name      String         @db.VarChar(100)
-  icon      String?        @db.Text // For SVG content or base64
+  icon      String?        @db.Text
   category  SafetyCategory @default(OTHER)
   isActive  Boolean        @default(true)
   createdAt DateTime       @default(now())
@@ -257,14 +250,14 @@ model PropertyType {
 }
 
 /**
- * ===================== Properties / PropertyRoomTypes / Rooms =====================
+ * ===================== Properties =====================
  */
 
 model Property {
   id               String         @id @default(uuid()) @db.Char(36)
   title            String
-  description      String?
-  rulesAndPolicies String?
+  description      String?        @db.Text
+  rulesAndPolicies String?        @db.Text
   status           PropertyStatus @default(active)
   location         Json?
   avgRating        Decimal?       @db.Decimal(3, 2)
@@ -295,6 +288,7 @@ model Property {
   SpecialRateApplication SpecialRateApplication[]
 
   @@unique([title, isDeleted])
+  @@unique([ownerHostId, isDeleted])
   @@index([ownerHostId])
   @@index([propertyTypeId])
   @@index([isDeleted])
@@ -332,32 +326,22 @@ model RoomType {
 }
 
 model PropertyRoomType {
-  id                   String   @id @default(uuid()) @db.Char(36)
-  propertyId           String   @db.Char(36)
-  roomTypeId           String   @db.Char(36)
-  basePrice            Decimal  @db.Decimal(10, 2)
-  singleoccupancyprice Decimal  @db.Decimal(10, 2)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-  isDeleted            Boolean  @default(false)
-  isActive             Boolean  @default(true)
-
-  Occupancy           Int     @default(2)
-  extraBedCapacity    Int     @default(0)
-  extraBedPriceAdult  Decimal @default(0) @db.Decimal(10, 2)
-  extraBedPriceChild  Decimal @default(0) @db.Decimal(10, 2)
-  extraBedPriceInfant Decimal @default(0) @db.Decimal(10, 2)
-
-  // Included (default) meal plan for this room type (optional)
-  baseMealPlanId String?   @db.Char(36)
-  baseMealPlan   MealPlan? @relation(fields: [baseMealPlanId], references: [id])
+  id               String   @id @default(uuid()) @db.Char(36)
+  propertyId       String   @db.Char(36)
+  roomTypeId       String   @db.Char(36)
+  Occupancy        Int      @default(2)
+  extraBedCapacity Int      @default(0)
+  minOccupancy     Int      @default(1)
+  maxOccupancy     Int
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  isDeleted        Boolean  @default(false)
+  isActive         Boolean  @default(true)
 
   property               Property                   @relation(fields: [propertyId], references: [id])
   roomType               RoomType                   @relation(fields: [roomTypeId], references: [id])
-  // Available meal plans for this room type with optional overrides
   mealPlanLinks          PropertyRoomTypeMealPlan[]
   rooms                  Room[]
-  rates                  RateCalendar[]
   bookings               Booking[]
   specialRateLinks       SpecialRateRoomType[]
   SpecialRateApplication SpecialRateApplication[]
@@ -374,7 +358,6 @@ model Room {
   name               String
   code               String?
   spaceSqft          Int?
-  maxOccupancy       Int
   images             Json?
   status             RoomStatus @default(active)
   createdAt          DateTime   @default(now())
@@ -383,10 +366,8 @@ model Room {
 
   propertyRoomType PropertyRoomType @relation(fields: [propertyRoomTypeId], references: [id])
 
-  roomRates    RoomRateCalendar[]
   availability Availability[]
   bookings     Booking[]
-  amenities    RoomAmenity[]
 
   @@index([propertyRoomTypeId])
   @@index([isDeleted])
@@ -395,14 +376,13 @@ model Room {
 model Availability {
   id        String                 @id @default(uuid()) @db.Char(36)
   roomId    String                 @db.Char(36)
-  date      DateTime
+  date      DateTime               @db.Date
   status    RoomAvailabilityStatus @default(available)
   minNights Int?
   createdAt DateTime               @default(now())
   updatedAt DateTime               @updatedAt
   isDeleted Boolean                @default(false)
 
-  // For maintenance/blocking notes
   reason    String?
   blockedBy String?
 
@@ -416,49 +396,27 @@ model Availability {
 }
 
 /**
- * ===================== Inventory: Rate Calendar (simple) =====================
- */
-
-model RateCalendar {
-  id                 String   @id @default(uuid()) @db.Char(36)
-  propertyRoomTypeId String   @db.Char(36)
-  date               DateTime
-  price              Decimal? @db.Decimal(10, 2)
-  isOpen             Boolean  @default(true)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  isDeleted          Boolean  @default(false)
-
-  propertyRoomType PropertyRoomType @relation(fields: [propertyRoomTypeId], references: [id], onDelete: Cascade)
-
-  @@unique([propertyRoomTypeId, date, isDeleted])
-  @@index([propertyRoomTypeId, date])
-  @@index([isDeleted])
-}
-
-/**
- * ===================== Bookings / Payments / Reviews =====================
+ * ===================== Bookings =====================
  */
 
 model Booking {
-  id                 String  @id @default(uuid()) @db.Char(36)
-  userId             String  @db.Char(36)
-  propertyId         String  @db.Char(36)
-  propertyRoomTypeId String  @db.Char(36)
-  roomId             String  @db.Char(36)
-  mealPlanId         String?
-
-  startDate    DateTime
-  endDate      DateTime
-  subtotal     Decimal       @db.Decimal(10, 2)
-  taxes        Decimal       @db.Decimal(10, 2)
-  discount     Decimal       @db.Decimal(10, 2)
-  total        Decimal       @db.Decimal(10, 2)
-  status       BookingStatus @default(pending)
-  rateSnapshot Json?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  isDeleted    Boolean       @default(false)
+  id                 String        @id @default(uuid()) @db.Char(36)
+  userId             String        @db.Char(36)
+  propertyId         String        @db.Char(36)
+  propertyRoomTypeId String        @db.Char(36)
+  roomId             String        @db.Char(36)
+  mealPlanId         String?       @db.Char(36)
+  startDate          DateTime      @db.Date
+  endDate            DateTime      @db.Date
+  subtotal           Decimal       @db.Decimal(10, 2)
+  taxes              Decimal       @db.Decimal(10, 2)
+  discount           Decimal       @db.Decimal(10, 2)
+  total              Decimal       @db.Decimal(10, 2)
+  status             BookingStatus @default(pending)
+  rateSnapshot       Json?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  isDeleted          Boolean       @default(false)
 
   promoId String?    @db.Char(36)
   promo   Promotion? @relation(fields: [promoId], references: [id])
@@ -480,40 +438,41 @@ model Booking {
 }
 
 /**
- * ===================== Meal Plans (detached/simple) =====================
+ * ===================== Meal Plans =====================
  */
 
 model MealPlan {
   id          String       @id @default(uuid()) @db.Char(36)
-  code        String       @unique
+  code        String
   name        String
   kind        MealPlanKind
-  adult_price Decimal      @db.Decimal(10, 2)
-  child_price Decimal      @db.Decimal(10, 2)
-  description String?
+  description String?      @db.Text
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   isDeleted   Boolean      @default(false)
-  propertyId  String       @default("some-default-property-id")
+  propertyId  String       @db.Char(36)
 
-  bookings         Booking[]
-  property         Property                   @relation(fields: [propertyId], references: [id])
-  roomTypeLinks    PropertyRoomTypeMealPlan[]
-  PropertyRoomType PropertyRoomType[]
+  bookings      Booking[]
+  property      Property                   @relation(fields: [propertyId], references: [id])
+  roomTypeLinks PropertyRoomTypeMealPlan[]
 
+  @@unique([propertyId, code])
   @@index([isDeleted])
 }
 
-// Join table: room-type specific meal plans and optional override prices
 model PropertyRoomTypeMealPlan {
-  id                 String   @id @default(uuid()) @db.Char(36)
-  propertyRoomTypeId String   @db.Char(36)
-  mealPlanId         String   @db.Char(36)
-  adultPrice         Decimal? @db.Decimal(10, 2) // null => use MealPlan.adult_price
-  childPrice         Decimal? @db.Decimal(10, 2) // null => use MealPlan.child_price
-  isActive           Boolean  @default(true)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                   String   @id @default(uuid()) @db.Char(36)
+  propertyRoomTypeId   String   @db.Char(36)
+  mealPlanId           String   @db.Char(36)
+  doubleOccupancyPrice Decimal  @db.Decimal(10, 2)
+  singleOccupancyPrice Decimal  @db.Decimal(10, 2)
+  groupOccupancyPrice  Decimal  @db.Decimal(10, 2)
+  extraBedPriceAdult   Decimal  @db.Decimal(10, 2)
+  extraBedPriceChild   Decimal  @db.Decimal(10, 2)
+  extraBedPriceInfant  Decimal  @default(0) @db.Decimal(10, 2)
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   propertyRoomType PropertyRoomType @relation(fields: [propertyRoomTypeId], references: [id], onDelete: Cascade)
   mealPlan         MealPlan         @relation(fields: [mealPlanId], references: [id], onDelete: Cascade)
@@ -556,7 +515,7 @@ model Review {
   id          String   @id @default(uuid()) @db.Char(36)
   userId      String   @db.Char(36)
   propertyId  String   @db.Char(36)
-  description String?
+  description String?  @db.Text
   rating      Int
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -603,8 +562,8 @@ model Promotion {
   id         String          @id @default(uuid()) @db.Char(36)
   propertyId String          @db.Char(36)
   discount   Decimal         @db.Decimal(10, 2)
-  validFrom  DateTime
-  validTo    DateTime
+  validFrom  DateTime        @db.Date
+  validTo    DateTime        @db.Date
   status     PromotionStatus @default(active)
   type       PromotionType
   code       String          @unique
@@ -620,7 +579,7 @@ model Promotion {
 }
 
 /**
- * ===================== Join Tables (M:N) =====================
+ * ===================== Join Tables =====================
  */
 
 model PropertyAmenity {
@@ -687,39 +646,25 @@ model RoomTypeAmenity {
   @@index([isDeleted])
 }
 
-model RoomAmenity {
-  id        String   @id @default(uuid()) @db.Char(36)
-  roomId    String   @db.Char(36)
-  amenityId String   @db.Char(36)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  isDeleted Boolean  @default(false)
-
-  room    Room    @relation(fields: [roomId], references: [id])
-  amenity Amenity @relation(fields: [amenityId], references: [id])
-
-  @@unique([roomId, amenityId, isDeleted])
-  @@index([amenityId])
-  @@index([isDeleted])
-}
 
 /**
- * ===================== Special Rates =====================
+ * ===================== Special Rates (Your Pricing System) =====================
  */
 
 model SpecialRate {
-  id                     String                   @id @default(uuid()) @db.Char(36)
-  kind                   SpecialRateKind          @default(custom)
-  name                   String                   @db.VarChar(100)
-  propertyId             String                   @db.Char(36)
-  pricingMode            PricingMode?
-  color                  String
-  flatPrice              Decimal?                 @db.Decimal(10, 2)
-  percentAdj             Decimal?                 @db.Decimal(5, 2)
-  isActive               Boolean                  @default(true)
-  createdAt              DateTime                 @default(now())
-  updatedAt              DateTime                 @updatedAt
-  isDeleted              Boolean                  @default(false)
+  id          String          @id @default(uuid()) @db.Char(36)
+  kind        SpecialRateKind @default(custom)
+  name        String          @db.VarChar(100)
+  propertyId  String          @db.Char(36)
+  pricingMode PricingMode?
+  color       String
+  flatPrice   Decimal?        @db.Decimal(10, 2)
+  percentAdj  Decimal?        @db.Decimal(5, 2)
+  isActive    Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  isDeleted   Boolean         @default(false)
+
   property               Property                 @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   roomTypeLinks          SpecialRateRoomType[]
   Host                   Host?                    @relation(fields: [hostId], references: [id])
@@ -733,17 +678,13 @@ model SpecialRate {
 }
 
 model SpecialRateRoomType {
-  id                 String @id @default(uuid()) @db.Char(36)
-  specialRateId      String @db.Char(36)
-  propertyRoomTypeId String @db.Char(36)
-
-  // Per-room-type pricing override (optional; falls back to SpecialRate defaults if null)
-  pricingMode PricingMode
-  flatPrice   Decimal?    @db.Decimal(10, 2)
-  percentAdj  Decimal?    @db.Decimal(5, 2)
-
-  // Optional toggle per room type
-  isActive Boolean @default(true)
+  id                 String      @id @default(uuid()) @db.Char(36)
+  specialRateId      String      @db.Char(36)
+  propertyRoomTypeId String      @db.Char(36)
+  pricingMode        PricingMode
+  flatPrice          Decimal?    @db.Decimal(10, 2)
+  percentAdj         Decimal?    @db.Decimal(5, 2)
+  isActive           Boolean     @default(true)
 
   specialRate      SpecialRate      @relation(fields: [specialRateId], references: [id], onDelete: Cascade)
   propertyRoomType PropertyRoomType @relation(fields: [propertyRoomTypeId], references: [id], onDelete: Cascade)
@@ -757,9 +698,9 @@ model SpecialRateApplication {
   id                 String   @id @default(uuid()) @db.Char(36)
   specialRateId      String   @db.Char(36)
   propertyId         String   @db.Char(36)
-  propertyRoomTypeId String?  @db.Char(36) // null => applies property-wide
-  dateFrom           DateTime
-  dateTo             DateTime
+  propertyRoomTypeId String?  @db.Char(36)
+  dateFrom           DateTime @db.Date
+  dateTo             DateTime @db.Date
   isActive           Boolean  @default(true)
   createdBy          String?
   createdAt          DateTime @default(now())
@@ -769,27 +710,8 @@ model SpecialRateApplication {
   property         Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   propertyRoomType PropertyRoomType? @relation(fields: [propertyRoomTypeId], references: [id], onDelete: Cascade)
 
-  // prevent duplicate applications for same scope-window
   @@unique([specialRateId, propertyId, propertyRoomTypeId, dateFrom, dateTo], name: "unique_app_scope_window")
-  // fast calendar reads
   @@index([propertyId, dateFrom, dateTo, isActive], name: "idx_app_property_date_active")
   @@index([propertyRoomTypeId, dateFrom, dateTo, isActive], name: "idx_app_roomtype_date_active")
   @@index([specialRateId], name: "idx_app_rate")
-}
-
-model RoomRateCalendar {
-  id        String   @id @default(uuid()) @db.Char(36)
-  roomId    String   @db.Char(36)
-  date      DateTime
-  price     Decimal? @db.Decimal(10, 2) // null = inherit from type/specials
-  isOpen    Boolean? // null = inherit open/close
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  isDeleted Boolean  @default(false)
-
-  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
-
-  @@unique([roomId, date, isDeleted])
-  @@index([roomId, date])
-  @@index([isDeleted])
 }

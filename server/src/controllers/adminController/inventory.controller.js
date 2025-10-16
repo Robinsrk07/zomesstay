@@ -32,7 +32,6 @@ const AvailabilityController = {
             where: { isDeleted: false },
             select: {
               id: true,
-              basePrice: true,
               isActive: true,
               roomType: {
                 select: { name: true }
@@ -161,7 +160,7 @@ const AvailabilityController = {
 
 module.exports = AvailabilityController;
 
-// const { PrismaClient } = require('@prisma/client');
+
 // const prisma = new PrismaClient();
 
 // // "2025-09-29T00:00:00.000Z" -> "2025-09-29"

@@ -37,11 +37,11 @@ PropertyRoute.put('/room-types/:id', PropertyController.updateRoomType);
 PropertyRoute.delete('/room-types/:id', PropertyController.deleteRoomType);
 
 /* ---------------------------- PROPERTIES ------------------------- */
-PropertyRoute.post(
-  '/properties',
-  uploadMedia.any(),
-  PropertyController.createProperty
-);
+// PropertyRoute.post(
+//   '/properties',
+//   uploadMedia.any(),
+//   PropertyController.createProperty
+// );
 
 PropertyRoute.get('/properties', PropertyController.getProperties);
 PropertyRoute.get('/properties/search', PropertyController.searchProperties);

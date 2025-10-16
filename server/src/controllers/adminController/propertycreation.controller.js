@@ -75,7 +75,9 @@ const propertyCreation = {
       } = req.body;
 
 
-      console.log(req.body.roomtypes)
+
+
+      console.log(req.body)
       // Validate required fields
       if (!title?.trim()) {
         return res.status(400).json({ 
@@ -115,13 +117,20 @@ const propertyCreation = {
 
       // Parse and validate room types
       const roomTypesRaw = safeJSON(roomtypes, []);
+
+      console.log('roomTypesRaw', roomTypesRaw);
       const roomTypeList = roomTypesRaw.filter(rt => 
         rt && 
         typeof rt === 'object' && 
         rt.roomTypeId && 
         typeof rt.roomTypeId === 'string' &&
         rt.roomTypeId.trim() !== '' &&
-        rt.basePrice !== undefined
+        rt.Occupancy !== undefined &&
+        rt.Occupancy !== null &&
+        !isNaN(Number(rt.Occupancy)) &&
+        rt.extraBedCapacity !== undefined &&
+        rt.extraBedCapacity !== null &&
+        !isNaN(Number(rt.extraBedCapacity))
       );
       console.log(`Received ${roomTypesRaw.length} room types, ${roomTypeList.length} valid`);
       // Validate file uploads
@@ -183,18 +192,22 @@ const propertyCreation = {
         }
       }
 
+
+      let  host 
       // Validate owner host
       if (ownerHostId) {
-        const host = await prisma.host.findFirst({ 
-          where: { id: ownerHostId, isDeleted: false }, 
+         host = await prisma.host.findFirst({ 
+          where: { email: ownerHostId, isDeleted: false }, 
           select: { id: true } 
         });
+        console.log('host', host);
         if (!host) {
           return res.status(404).json({ 
             success: false, 
             message: 'Owner host not found' 
           });
         }
+
       }
 
       // Validate all related entities
@@ -223,7 +236,7 @@ const propertyCreation = {
             rulesAndPolicies: rulesAndPolicies?.trim() || null,
             status,
             propertyTypeId: propertyTypeId || null,
-            ownerHostId: ownerHostId || null,
+            ownerHostId: host.id || null,
             location: locationData,
           },
           select: { id: true }
@@ -297,111 +310,90 @@ const propertyCreation = {
         if (roomTypeList.length) {
           for (const [index, rt] of roomTypeList.entries()) {
             console.log(`Creating room type ${index + 1}/${roomTypeList.length}`);
-            
+             let maxOccupancy = rt.Occupancy + rt.extraBedCapacity;
             const roomTypeData = {
               propertyId: property.id,
-              roomTypeId: rt.roomTypeId,
-              basePrice: validateNumber(rt.basePrice, 'basePrice', 1),
-              singleoccupancyprice: validateNumber(
-                rt.singleOccupancyPrice || rt.singleoccupancyprice || 0, 
-                'singleOccupancyPrice', 0
-              ),
+              roomTypeId: rt.roomTypeId,           
               Occupancy: validateNumber(rt.occupancy || rt.Occupancy || 2, 'occupancy', 1),
               extraBedCapacity: validateNumber(rt.extraBedCapacity ?? 0, 'extraBedCapacity', 0),
-              extraBedPriceAdult: validateNumber(rt.extraBedPriceAdult ?? 0, 'extraBedPriceAdult', 0),
-              extraBedPriceChild: validateNumber(rt.extraBedPriceChild ?? 0, 'extraBedPriceChild', 0),
-              extraBedPriceInfant: validateNumber(rt.extraBedPriceInfant ?? 0, 'extraBedPriceInfant', 0),
-              baseMealPlanId: rt.baseMealPlanId || null,
+              minOccupancy: validateNumber(rt.minOccupancy ?? 1, 'minOccupancy', 1),
+              maxOccupancy: maxOccupancy,
             };
 
             const createdRoomType = await tx.propertyRoomType.create({
               data: roomTypeData,
-              select: { id: true, basePrice: true }
             });
 
             createdRoomTypes.push(createdRoomType);
 
-            // Create meal plan links
-            if (Array.isArray(rt.mealPlans) && rt.mealPlans.length) {
-              await tx.propertyRoomTypeMealPlan.createMany({
-                data: rt.mealPlans.map(mp => ({
-                  propertyRoomTypeId: createdRoomType.id,
-                  mealPlanId: mp.mealPlanId,
-                  adultPrice: mp.adultPrice != null ? validateNumber(mp.adultPrice, 'adultPrice', 0) : null,
-                  childPrice: mp.childPrice != null ? validateNumber(mp.childPrice, 'childPrice', 0) : null,
-                  isActive: mp.isActive ?? true,
-                }))
-              });
-            }
+            
           }
-          console.log(`Created ${createdRoomTypes.length} room types with meal plans`);
         }
 
         // 4. Seed rate calendar in batches
-        if (createdRoomTypes.length) {
-          const today = new Date();
-          console.log(`Seeding rate calendar for ${DAYS_TO_SEED} days...`);
+        // if (createdRoomTypes.length) {
+        //   const today = new Date();
+        //   console.log(`Seeding rate calendar for ${DAYS_TO_SEED} days...`);
 
-          for (const prt of createdRoomTypes) {
-            // Process in batches of 30 days to avoid huge transactions
-            for (let batchStart = 0; batchStart < DAYS_TO_SEED; batchStart += 30) {
-              const batchSize = Math.min(30, DAYS_TO_SEED - batchStart);
-              const batchRows = Array.from({ length: batchSize }).map((_, i) => ({
-                propertyRoomTypeId: prt.id,
-                date: addDaysUtc(today, batchStart + i),
-                price: prt.basePrice,
-                isOpen: true,
-                isDeleted: false,
-              }));
+        //   for (const prt of createdRoomTypes) {
+        //     // Process in batches of 30 days to avoid huge transactions
+        //     for (let batchStart = 0; batchStart < DAYS_TO_SEED; batchStart += 30) {
+        //       const batchSize = Math.min(30, DAYS_TO_SEED - batchStart);
+        //       const batchRows = Array.from({ length: batchSize }).map((_, i) => ({
+        //         propertyRoomTypeId: prt.id,
+        //         date: addDaysUtc(today, batchStart + i),
+        //         price: prt.basePrice,
+        //         isOpen: true,
+        //         isDeleted: false,
+        //       }));
 
-              await tx.rateCalendar.createMany({
-                data: batchRows,
-                skipDuplicates: true,
-              });
-            }
-          }
-          console.log('Rate calendar seeded successfully');
-        }
+        //       await tx.rateCalendar.createMany({
+        //         data: batchRows,
+        //         skipDuplicates: true,
+        //       });
+        //     }
+        //   }
+        //   console.log('Rate calendar seeded successfully');
+        // }
 
         // 5. Fetch complete property with all relations
-        const completeProperty = await tx.property.findUnique({
-          where: { id: property.id },
-          include: {
-            propertyType: true,
-            ownerHost: true,
-            roomTypes: {
-              include: {
-                roomType: true,
-                baseMealPlan: true,
-                mealPlanLinks: {
-                  include: {
-                    mealPlan: true
-                  }
-                }
-              }
-            },
-            media: {
-              orderBy: { order: 'asc' }
-            },
-            amenities: {
-              include: { amenity: true }
-            },
-            facilities: {
-              include: { facility: true }
-            },
-            safeties: {
-              include: { safety: true }
-            },
-          },
-        });
+        // const completeProperty = await tx.property.findUnique({
+        //   where: { id: property.id },
+        //   include: {
+        //     propertyType: true,
+        //     ownerHost: true,
+        //     roomTypes: {
+        //       include: {
+        //         roomType: true,
+        //         baseMealPlan: true,
+        //         mealPlanLinks: {
+        //           include: {
+        //             mealPlan: true
+        //           }
+        //         }
+        //       }
+        //     },
+        //     media: {
+        //       orderBy: { order: 'asc' }
+        //     },
+        //     amenities: {
+        //       include: { amenity: true }
+        //     },
+        //     facilities: {
+        //       include: { facility: true }
+        //     },
+        //     safeties: {
+        //       include: { safety: true }
+        //     },
+        //   },
+        // });
 
-        return completeProperty;
+        // return completeProperty;
       }, {
         maxWait: MAX_TRANSACTION_WAIT,
         timeout: MAX_TRANSACTION_TIMEOUT,
       });
 
-      console.log(`Property created successfully: ${result.id}`);
 
       return res.status(201).json({
         success: true,
@@ -459,14 +451,12 @@ const propertyCreation = {
         facilities,
         safetyHygiene,
         roomTypes,
-        mealPlans,
         propertyTypes
       ] = await Promise.all([
         prisma.amenity.findMany({ where: { isDeleted: false } }),
         prisma.facility.findMany({ where: { isDeleted: false } }),
         prisma.safetyHygiene.findMany({ where: { isDeleted: false } }),
         prisma.roomType.findMany({ where: { isDeleted: false } }),
-        prisma.mealPlan.findMany({ where: { isDeleted: false } }),
         prisma.propertyType.findMany({ where: { isDeleted: false } })
       ]);
 
@@ -477,7 +467,6 @@ const propertyCreation = {
           facilities,
           safetyHygiene,
           roomTypes,
-          mealPlans,
           propertyTypes
         }
       });
@@ -505,8 +494,12 @@ const propertyCreation = {
         if (!rt.roomTypeId) {
           errors.push(`Room type ${index + 1}: roomTypeId is required`);
         }
-        if (rt.basePrice === undefined || isNaN(Number(rt.basePrice))) {
-          errors.push(`Room type ${index + 1}: valid basePrice is required`);
+       
+        if (rt.Occupancy === undefined || rt.Occupancy === null || isNaN(Number(rt.Occupancy))) {
+          errors.push(`Room type ${index + 1}: valid Occupancy is required`);
+        }
+        if (rt.extraBedCapacity === undefined || rt.extraBedCapacity === null || isNaN(Number(rt.extraBedCapacity))) {
+          errors.push(`Room type ${index + 1}: valid extraBedCapacity is required`);
         }
       });
 
@@ -549,10 +542,11 @@ const propertyCreation = {
         });
         if (!validPropertyType) errors.push('Invalid property type');
       }
-
+      
+      let  validHost
       if (ownerHostId) {
-        const validHost = await prisma.host.findFirst({
-          where: { id: ownerHostId, isDeleted: false }
+         validHost = await prisma.host.findFirst({
+          where: { email: ownerHostId, isDeleted: false }
         });
         if (!validHost) errors.push('Invalid owner host');
       }

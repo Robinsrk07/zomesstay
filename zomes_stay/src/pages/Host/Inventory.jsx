@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Calendar, ChevronLeft, ChevronRight, Settings, Filter, Download, Search, Plus, Edit, Eye, BarChart3, TrendingUp, DollarSign, Percent, Save, X, Wrench, Check, Home, Utensils, Target, CalendarDays, IndianRupee, HelpCircle, AlertTriangle, Info } from 'lucide-react';
 import SpecialRateModal from '../../components/SpecialRateModal';
-import {specialRateService,propertyService,inventoryService,specialRateApplicationService,propertyRoomTypeService} from '../../services';
+import RatePlannerModal from '../../components/RatePlannerModal';
+import AddRoomModal from '../../components/AddRoomModal';
+import {specialRateService,propertyService,mealPlanService,inventoryService,specialRateApplicationService,propertyRoomTypeService} from '../../services';
 import { toast } from 'react-toastify';
+import { useSelector } from 'react-redux';
+
 
 const PMSInventory = () => {
-  const [propertyId] = useState('232c850f-4525-4383-a829-b5d391f8cb03');
   const [availabilityData, setAvailabilityData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -17,22 +20,23 @@ const PMSInventory = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [editingRoom, setEditingRoom] = useState(null);
   const [editingPrice, setEditingPrice] = useState('');
+  const [mealPlans, setMealPlans] = useState([]);
   const [roomMaintenanceStatus, setRoomMaintenanceStatus] = useState({});
   const [showSpecialRateModal, setShowSpecialRateModal] = useState(false);
+  const [showRatePlannerModal, setShowRatePlannerModal] = useState(false);
+  const [showAddRoomModal, setShowAddRoomModal] = useState(false);
   const [specialRates, setSpecialRates] = useState([]);
   const [loadingSpecialRates, setLoadingSpecialRates] = useState(false);
   const [roomTypesMap, setRoomTypesMap] = useState([]);
-
-  console.log("selectedRoomType",roomTypesMap)
-
   // Add new state for drag selection and special rates
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartDate, setDragStartDate] = useState(null);
-
+  const { property } = useSelector((state) => state.property);
+  const propertyId = property?.id;
+  console.log("propertyId",propertyId)
   const [selectedDateRange, setSelectedDateRange] = useState([]);
 
-  console.log("selectedDateRange",selectedDateRange)
-
+ console.log(mealPlans)
   const [showSpecialRateToast, setShowSpecialRateToast] = useState(false);
   const [appliedSpecialRates, setAppliedSpecialRates] = useState({}); // Store applied rates by date
   // Add mobile-specific state
@@ -102,19 +106,22 @@ const PMSInventory = () => {
 
  
 
-  // Meal plan options
-  const mealPlans = [
-    { value: 'EP', label: 'EP (European Plan)', description: 'Room Only' },
-    { value: 'CP', label: 'CP (Continental Plan)', description: 'Room + Breakfast' },
-    { value: 'MAP', label: 'MAP (Modified American Plan)', description: 'Room + Breakfast + Dinner' },
-    { value: 'AP', label: 'AP (American Plan)', description: 'All Meals Included' },
-    { value: 'NO_MEAL', label: 'No Meal Plan', description: 'Room Only' }
-  ];
+ 
 
-const handleApplySpecialRate = async (rate)=>{
+  const fetchMealPlans = useCallback(async () => {
+    try{
+      const response = await mealPlanService.getMealPlans(propertyId);
+      const data = response
 
+      console.log("mealPlans",data)
+      setMealPlans(data);
+      
+    }catch(error){
+      console.error('Error fetching meal plans:', error);
+      toast.error('Failed to load meal plansnn');
+    }
+  }, [propertyId]);
 
-}
 
  const fetchAppliedSpecialRates = useCallback(async () => {
    try {
@@ -221,7 +228,8 @@ const handleApplySpecialRate = async (rate)=>{
     fetchAvailability(start, end);
     fetchRoomTypesMap();
     fetchSpecialRates();
-  }, [fetchAvailability, getDateRange, fetchRoomTypesMap, fetchSpecialRates]);
+    fetchMealPlans()
+  }, [fetchAvailability, getDateRange,fetchMealPlans, fetchRoomTypesMap, fetchSpecialRates]);
 
  
   const transformApiDataToCalendarFormat = (apiData) => {
@@ -731,18 +739,13 @@ const handleApplySpecialRate = async (rate)=>{
           </div>
           
           <div className="flex items-center space-x-3">
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-lg ${
-                showFilters ? 'bg-gray-100 text-gray-900' : 'text-gray-700 bg-white hover:bg-gray-50'
-              } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors`}
+            
+            <button 
+              onClick={() => setShowRatePlannerModal(true)}
+              className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-violet-600 hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500 transition-colors"
             >
-              <Filter className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">Filters</span>
-            </button>
-            <button className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
-              <Download className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">Export</span>
+            <Plus size={20} />
+          <span className="hidden sm:inline">Rate Planner</span>
             </button>
             <button 
               onClick={() => setShowSpecialRateModal(true)}
@@ -751,7 +754,10 @@ const handleApplySpecialRate = async (rate)=>{
               <Target className="h-4 w-4 mr-2" />
               <span className="hidden sm:inline">Special Rate</span>
             </button>
-            <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+            <button 
+              onClick={() => setShowAddRoomModal(true)}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+            >
               <Plus className="h-4 w-4 mr-2" />
               <span className="hidden sm:inline">Add Room</span>
             </button>
@@ -776,19 +782,7 @@ const handleApplySpecialRate = async (rate)=>{
                 </select>
               </div>
               
-              <div className="flex items-center space-x-3">
-                <Utensils className="h-4 w-4 text-gray-500" />
-                <label className="text-sm font-medium text-gray-700 whitespace-nowrap">Meal Plan:</label>
-                <select
-                  value={selectedMealPlan}
-                  onChange={(e) => setSelectedMealPlan(e.target.value)}
-                  className="block w-full sm:w-48 pl-3 pr-10 py-2.5 text-sm border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-lg shadow-sm"
-                >
-                  {mealPlans.map(plan => (
-                    <option key={plan.value} value={plan.value}>{plan.label}</option>
-                  ))}
-                </select>
-              </div>
+              
             </div>
             
             {showFilters && (
@@ -1697,6 +1691,49 @@ const handleApplySpecialRate = async (rate)=>{
           </div>
         </div>
       )}
+
+      {/* Rate Planner Modal */}
+      <RatePlannerModal
+        isOpen={showRatePlannerModal}
+        onClose={() => setShowRatePlannerModal(false)}
+        roomTypesMap={roomTypesMap}
+        mealPlans={mealPlans}
+        propertyId={propertyId}
+        onSave={async (ratePlans) => {
+          // TODO: Implement API call to save rate plans
+          console.log('Saving rate plans:', ratePlans);
+          // Example: await ratePlannerService.saveRatePlans(propertyId, ratePlans);
+        }}
+      />
+
+      {/* Add Room Modal */}
+      <AddRoomModal
+        isOpen={showAddRoomModal}
+        onClose={() => setShowAddRoomModal(false)}
+        roomTypesMap={roomTypesMap}
+        propertyId={propertyId}
+        onSave={async (roomData) => {
+          try {
+            
+            // Call the API to create room
+            const response = await propertyService.createRoom(propertyId, roomData);
+            
+            if (response.data.success) {
+              toast.success('Room created successfully!');
+              
+              // Refresh availability data
+              const { start, end } = getDateRange();
+              await fetchAvailability(start, end);
+            } else {
+              throw new Error(response.data.message || 'Failed to create room');
+            }
+          } catch (error) {
+            console.error('Error creating room:', error);
+            toast.error(error.response?.data?.message || 'Failed to create room. Please try again.');
+          }
+        }}
+      />
+
     </div>
   );
 };

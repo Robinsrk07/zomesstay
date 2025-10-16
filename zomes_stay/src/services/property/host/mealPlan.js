@@ -7,8 +7,8 @@ const mealPlanService = {
     const res = await apiService.post(MEAL_PLAN.MEAL_PLAN, mealPlanData);
     return res.data;
   },
-  async getMealPlans() {
-    const res = await apiService.get(MEAL_PLAN.MEAL_PLAN);
+  async getMealPlans(propertyId) {
+    const res = await apiService.get(`${MEAL_PLAN.MEAL_PLAN}?propertyId=${propertyId}`);
     return res.data;
   },
   async getMealPlan(id) {
