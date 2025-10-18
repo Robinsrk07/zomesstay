@@ -36,6 +36,9 @@ const AvailabilityController = {
               roomType: {
                 select: { name: true }
               },
+              mealPlanLinks:{
+                where: { isActive: true },
+              },
 
               rooms: {
                 where: { isDeleted: false },
@@ -45,10 +48,6 @@ const AvailabilityController = {
                   availability: {
                     where: {
                       isDeleted: false,
-                      date: {
-                        gte: new Date(startDate),
-                        lt: new Date(endDate),
-                      },
                     },
                     select: {
                       id: true,
@@ -58,58 +57,46 @@ const AvailabilityController = {
                     },
                   },
                 },
-              },
-              rates:{
-                where:{ isDeleted: false, 
-                  date: {
-                        gte: new Date(startDate),
-                        lt: new Date(endDate),
-                      }},
-                select:{
-                  id:true,
-                  date:true,
-                  price:true,
-                  isOpen:true,
-                }
               }
+             
             },
           },
         },
       });
       
-      const appliedSpecialRates = await prisma.specialRateApplication.findMany({
-  where: {
-    propertyId: propertyId,
-    isActive: true,
-  },
-  select: {
-    id: true,
-    dateFrom: true,
-    dateTo: true,
-    propertyRoomTypeId: true,
-    specialRate: {
-      select: {
-        name: true,
-        color: true,
-        pricingMode: true,
-        flatPrice: true,
-        percentAdj: true,
-        roomTypeLinks: {
-          where: { isActive: true },
-          select: {
-            propertyRoomTypeId: true,
-            pricingMode: true,
-            flatPrice: true,
-            percentAdj: true,
-          },
-        },
-      },
-    },
-  },
-});
+//       const appliedSpecialRates = await prisma.specialRateApplication.findMany({
+//   where: {
+//     propertyId: propertyId,
+//     isActive: true,
+//   },
+//   select: {
+//     id: true,
+//     dateFrom: true,
+//     dateTo: true,
+//     propertyRoomTypeId: true,
+//     specialRate: {
+//       select: {
+//         name: true,
+//         color: true,
+//         pricingMode: true,
+//         flatPrice: true,
+//         percentAdj: true,
+//         roomTypeLinks: {
+//           where: { isActive: true },
+//           select: {
+//             propertyRoomTypeId: true,
+//             pricingMode: true,
+//             flatPrice: true,
+//             percentAdj: true,
+//           },
+//         },
+//       },
+//     },
+//   },
+// });
 
 
-      console.log("appliedSpecialRates", JSON.stringify(appliedSpecialRates, null, 2))
+     // console.log("appliedSpecialRates", JSON.stringify(appliedSpecialRates, null, 2))
 
 
 
@@ -137,17 +124,17 @@ const AvailabilityController = {
       Rooms: roomType?.rooms?.map((room)=>{return{roomId:room.id,roomName:room.name,Avilability:room.availability.filter((avail)=>toYMD(avail.date)===date).map((a)=>{return{availabilityId:a.id,date:toYMD(a.date),status:a.status}}),
 
     }}),
-        Rate:roomType?.rates.filter((rate)=>toYMD(rate.date)===date).map((r)=>{return{rateId:r.id,price:r.price,isOpen:r.isOpen,date: toYMD(r.date)}})
+       // Rate:roomType?.rates.filter((rate)=>toYMD(rate.date)===date).map((r)=>{return{rateId:r.id,price:r.price,isOpen:r.isOpen,date: toYMD(r.date)}})
         }
      })}
     })
   
 
-   dataWithSpecialRates = applySpecialRates(data, appliedSpecialRates);
+   //dataWithSpecialRates = applySpecialRates(data, appliedSpecialRates);
 
 
 
-      return res.json({dataWithSpecialRates});
+      return res.json({property});
     } catch (error) {
       console.error(error);
       return res.status(500).json({

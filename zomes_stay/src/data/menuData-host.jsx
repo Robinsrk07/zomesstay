@@ -47,6 +47,15 @@ import {
       ],
     },
     {
+      label: "Rate Plan Management",
+      icon: <Users className="w-4 h-4" />,
+      children: [
+        { label: "Best Rates", path: "best_available_rates" },
+
+       
+      ],
+    },
+    {
       label: "Guest Management",
       icon: <DollarSign className="w-4 h-4" />,
       children: [

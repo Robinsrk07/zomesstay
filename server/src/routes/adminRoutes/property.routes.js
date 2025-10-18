@@ -54,11 +54,23 @@ PropertyRoute.put(
 PropertyRoute.delete('/properties/:id', PropertyController.deleteProperty);
 
 /* ----------------------------- ROOMS ----------------------------- */
-// Add ONE room (your controller adds a single room per call)
+// Add multiple rooms (bulk creation)
 PropertyRoute.post(
   '/properties/:propertyId/rooms',
   uploadMedia.any(),  
-  PropertyController.addRooms       // <- note: method name is addRooms (capital R)
+  PropertyController.addRooms
+);
+
+// Update multiple rooms (bulk update with edge case handling)
+PropertyRoute.put(
+  '/properties/:propertyId/rooms',
+  PropertyController.updateRooms
+);
+
+// Get room configurations for editing (existing rooms with availability)
+PropertyRoute.get(
+  '/properties/:propertyId/room-configurations',
+  PropertyController.getRoomConfigurations
 );
 
 PropertyRoute.get('/properties/:propertyId/rooms', PropertyController.getRooms);

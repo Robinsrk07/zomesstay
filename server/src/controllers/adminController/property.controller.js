@@ -1366,20 +1366,17 @@ searchProperties: async (req, res) => {
  addRooms: async (req, res) => {
   const { propertyId } = req.params;
 
+  console.log('addRooms req.body:', req.body);
+
   if (!propertyId) {
     return res.status(400).json({ success: false, message: 'propertyId is required' });
   }
 
-  const { propertyRoomTypeId, name, spaceSqft, code, fromDate, toDate, images } = req.body;
-
-  if (!propertyRoomTypeId) {
-    return res.status(400).json({ success: false, message: 'propertyRoomTypeId is required' });
-  }
-  if (!name?.trim()) {
-    return res.status(400).json({ success: false, message: 'Room name is required' });
-  }
-  if (!fromDate || !toDate) {
-    return res.status(400).json({ success: false, message: 'From date and to date are required' });
+  // Expect array of room configurations
+  const roomConfigs = req.body;
+  
+  if (!Array.isArray(roomConfigs) || roomConfigs.length === 0) {
+    return res.status(400).json({ success: false, message: 'Room configurations array is required' });
   }
 
   try {
@@ -1391,119 +1388,402 @@ searchProperties: async (req, res) => {
       return res.status(404).json({ success: false, message: 'Property not found' });
     }
 
-    // ✅ Check room type exists
-    const propertyRoomType = await prisma.propertyRoomType.findFirst({
-      where: { id: propertyRoomTypeId, propertyId, isDeleted: false },
-    });
-    if (!propertyRoomType) {
-      return res.status(404).json({ success: false, message: 'Property room type not found' });
-    }
+    // ✅ Validate all room configurations
+    for (const config of roomConfigs) {
+      const { propertyRoomTypeId, namePrefix, roomCount, fromDate, toDate } = config;
 
-    // ✅ Validate date range
-    const startDate = new Date(fromDate);
-    const endDate = new Date(toDate);
-    if (startDate >= endDate) {
-      return res.status(400).json({ success: false, message: 'From date must be before to date' });
-    }
-  
-
-    // ✅ Process images (handle both file uploads and image names from frontend)
-    let roomImagesData = [];
-    
-    // If files are uploaded, process them
-    if (req.files && req.files.length > 0) {
-      const filesByField = (req.files || []).reduce((acc, f) => {
-        (acc[f.fieldname] ||= []).push(f);
-        return acc;
-      }, {});
-      const roomImages = filesByField['images'] || [];
-      const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
-      const maxFileSize = 10 * 1024 * 1024;
-
-      for (const file of roomImages) {
-        if (!allowedImageTypes.includes(file.mimetype)) {
-          return res.status(400).json({
-            success: false,
-            message: `Invalid image type: ${file.mimetype}. Only JPEG, PNG, WEBP are allowed.`,
-          });
-        }
-        if (file.size > maxFileSize) {
-          return res.status(400).json({
-            success: false,
-            message: `Image too large: ${file.originalname}. Max size is 10MB.`,
-          });
-        }
+      if (!propertyRoomTypeId) {
+        return res.status(400).json({ success: false, message: 'propertyRoomTypeId is required for all configurations' });
+      }
+      if (!namePrefix?.trim()) {
+        return res.status(400).json({ success: false, message: 'namePrefix is required for all configurations' });
+      }
+      if (!roomCount || roomCount < 1 || roomCount > 50) {
+        return res.status(400).json({ success: false, message: 'roomCount must be between 1 and 50' });
+      }
+      if (!fromDate || !toDate) {
+        return res.status(400).json({ success: false, message: 'fromDate and toDate are required for all configurations' });
       }
 
-      roomImagesData = roomImages.map((f, idx) => ({
-        url: fileToUrl(req, f),
-        caption: `Room Image ${idx + 1}`,
-        isFeatured: idx === 0,
-        order: idx,
-      }));
-    } else if (images && Array.isArray(images)) {
-      // If image names are provided from frontend (for future file upload implementation)
-      roomImagesData = images.map((imageName, idx) => ({
-        url: imageName, // This would be the uploaded file path/URL
-        caption: `Room Image ${idx + 1}`,
-        isFeatured: idx === 0,
-        order: idx,
-      }));
-    }
-
-    // ✅ Create room
-    const newRoom = await prisma.room.create({
-      data: {
-        propertyRoomTypeId,
-        name: name.trim(),
-        code: code?.trim() || null,
-        spaceSqft: spaceSqft ? parseInt(spaceSqft, 10) : null,
-        images: roomImagesData,
-        status: 'active',
+      // ✅ Validate date range
+      const startDate = new Date(fromDate);
+      const endDate = new Date(toDate);
+      if (startDate >= endDate) {
+        return res.status(400).json({ success: false, message: 'fromDate must be before toDate' });
       }
-    });
 
-    // ✅ Seed availability for the specified date range
-    const availabilities = [];
-    const currentDate = new Date(startDate);
-    
-    while (currentDate <= endDate) {
-      availabilities.push({
-        roomId: newRoom.id,
-        date: new Date(currentDate),
-        minNights: 1,
-        status: 'available',
-        isDeleted: false,
+      // ✅ Check room type exists for this property
+      const propertyRoomType = await prisma.propertyRoomType.findFirst({
+        where: { id: propertyRoomTypeId, propertyId, isDeleted: false },
       });
-      currentDate.setDate(currentDate.getDate() + 1);
+      if (!propertyRoomType) {
+        return res.status(404).json({ success: false, message: `Property room type not found: ${propertyRoomTypeId}` });
+      }
     }
 
-    await prisma.availability.createMany({
-      data: availabilities,
-      skipDuplicates: true, // ignore if already exists
-    });
+    // ✅ Create rooms and availability for each configuration
+    const createdRooms = [];
+    const totalAvailabilityCount = [];
+
+    for (const config of roomConfigs) {
+      const { propertyRoomTypeId, namePrefix, roomCount, fromDate, toDate } = config;
+      
+      // Create multiple rooms for this room type
+      for (let i = 1; i <= roomCount; i++) {
+        const roomName = `${namePrefix.trim()} ${i}`;
+        
+        // ✅ Create room
+        const newRoom = await prisma.room.create({
+          data: {
+            propertyRoomTypeId,
+            name: roomName,
+            code: null, // No code needed for bulk creation
+            spaceSqft: null, // No space needed for bulk creation
+            images: null, // No images for bulk creation
+            status: 'active',
+          }
+        });
+
+        createdRooms.push(newRoom);
+
+        // ✅ Create availability records for this room
+        const availabilities = [];
+        const startDate = new Date(fromDate);
+        const endDate = new Date(toDate);
+        const currentDate = new Date(startDate);
+        
+        while (currentDate <= endDate) {
+          availabilities.push({
+            roomId: newRoom.id,
+            date: new Date(currentDate),
+            minNights: 1,
+            status: 'available',
+            isDeleted: false,
+          });
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+
+        await prisma.availability.createMany({
+          data: availabilities,
+          skipDuplicates: true,
+        });
+
+        totalAvailabilityCount.push(availabilities.length);
+      }
+    }
+
+    const totalRooms = createdRooms.length;
+    const totalAvailabilityRecords = totalAvailabilityCount.reduce((sum, count) => sum + count, 0);
 
     return res.status(201).json({
       success: true,
-      message: `Room added with availability seeded from ${fromDate} to ${toDate} (${availabilities.length} days)`,
+      message: `Successfully created ${totalRooms} rooms with ${totalAvailabilityRecords} availability records`,
       data: {
-        room: newRoom,
-        availabilityCount: availabilities.length,
-        dateRange: {
-          from: fromDate,
-          to: toDate
-        }
+        totalRooms,
+        totalAvailabilityRecords,
+        roomConfigs: roomConfigs.map(config => ({
+          roomTypeId: config.propertyRoomTypeId,
+          namePrefix: config.namePrefix,
+          roomCount: config.roomCount,
+          fromDate: config.fromDate,
+          toDate: config.toDate,
+        })),
+        createdRooms: createdRooms.map(room => ({
+          id: room.id,
+          name: room.name,
+          propertyRoomTypeId: room.propertyRoomTypeId,
+        }))
       },
     });
   } catch (err) {
     console.error('addRooms:', err);
     return res.status(500).json({
       success: false,
-      message: 'Error adding room',
+      message: 'Error creating rooms',
       error: process.env.NODE_ENV === 'development' ? err.stack : undefined,
     });
   }
 },
+
+  updateRooms: async (req, res) => {
+    const { propertyId } = req.params;
+
+    console.log('updateRooms req.body:', req.body);
+
+    if (!propertyId) {
+      return res.status(400).json({ success: false, message: 'propertyId is required' });
+    }
+
+    // Expect array of room configurations
+    const roomConfigs = req.body;
+    
+    if (!Array.isArray(roomConfigs) || roomConfigs.length === 0) {
+      return res.status(400).json({ success: false, message: 'Room configurations array is required' });
+    }
+
+    try {
+      // ✅ Check property exists
+      const property = await prisma.property.findFirst({
+        where: { id: propertyId, isDeleted: false },
+      });
+      if (!property) {
+        return res.status(404).json({ success: false, message: 'Property not found' });
+      }
+
+      // ✅ Validate all room configurations
+      for (const config of roomConfigs) {
+        const { propertyRoomTypeId, namePrefix, roomCount, fromDate, toDate } = config;
+
+        if (!propertyRoomTypeId) {
+          return res.status(400).json({ success: false, message: 'propertyRoomTypeId is required for all configurations' });
+        }
+        if (!namePrefix?.trim()) {
+          return res.status(400).json({ success: false, message: 'namePrefix is required for all configurations' });
+        }
+        if (!roomCount || roomCount < 1 || roomCount > 50) {
+          return res.status(400).json({ success: false, message: 'roomCount must be between 1 and 50' });
+        }
+        if (!fromDate || !toDate) {
+          return res.status(400).json({ success: false, message: 'fromDate and toDate are required for all configurations' });
+        }
+
+        // ✅ Validate date range
+        const startDate = new Date(fromDate);
+        const endDate = new Date(toDate);
+        if (startDate >= endDate) {
+          return res.status(400).json({ success: false, message: 'fromDate must be before toDate' });
+        }
+
+        // ✅ Check room type exists for this property
+        const propertyRoomType = await prisma.propertyRoomType.findFirst({
+          where: { id: propertyRoomTypeId, propertyId, isDeleted: false },
+        });
+        if (!propertyRoomType) {
+          return res.status(404).json({ success: false, message: `Property room type not found: ${propertyRoomTypeId}` });
+        }
+      }
+
+      // ✅ Process each room type configuration
+      const updateResults = [];
+
+      for (const config of roomConfigs) {
+        const { propertyRoomTypeId, namePrefix, roomCount, fromDate, toDate } = config;
+        
+        // ✅ Get existing rooms for this room type
+        const existingRooms = await prisma.room.findMany({
+          where: { 
+            propertyRoomTypeId, 
+            isDeleted: false 
+          },
+          include: {
+            availability: {
+              where: { isDeleted: false },
+              orderBy: { date: 'asc' }
+            }
+          },
+          orderBy: { name: 'asc' }
+        });
+
+        const existingCount = existingRooms.length;
+        const newCount = roomCount;
+        const newDateRange = generateDateRange(fromDate, toDate);
+        
+        // ✅ Handle room count changes
+        if (newCount > existingCount) {
+          // Create additional rooms
+          for (let i = existingCount + 1; i <= newCount; i++) {
+            const roomName = `${namePrefix.trim()} ${i}`;
+            
+            const newRoom = await prisma.room.create({
+              data: {
+                propertyRoomTypeId,
+                name: roomName,
+                code: null,
+                spaceSqft: null,
+                images: null,
+                status: 'active',
+              }
+            });
+
+            // Create availability for new room
+            await createAvailabilityForRoom(newRoom.id, newDateRange);
+          }
+        } else if (newCount < existingCount) {
+          // Delete excess rooms
+          const roomsToDelete = existingRooms.slice(newCount);
+          const roomIdsToDelete = roomsToDelete.map(room => room.id);
+          
+          // Soft delete rooms
+          await prisma.room.updateMany({
+            where: { id: { in: roomIdsToDelete } },
+            data: { isDeleted: true }
+          });
+
+          // Soft delete their availability
+          await prisma.availability.updateMany({
+            where: { roomId: { in: roomIdsToDelete } },
+            data: { isDeleted: true }
+          });
+        }
+
+        // ✅ Handle room name changes (rename existing rooms)
+        const roomsToUpdate = existingRooms.slice(0, Math.min(existingCount, newCount));
+        for (let i = 0; i < roomsToUpdate.length; i++) {
+          const room = roomsToUpdate[i];
+          const newRoomName = `${namePrefix.trim()} ${i + 1}`;
+          
+          if (room.name !== newRoomName) {
+            await prisma.room.update({
+              where: { id: room.id },
+              data: { name: newRoomName }
+            });
+          }
+        }
+
+        // ✅ Handle availability date changes for all rooms (existing + new)
+        const allRooms = await prisma.room.findMany({
+          where: { 
+            propertyRoomTypeId, 
+            isDeleted: false 
+          }
+        });
+
+        for (const room of allRooms) {
+          await updateRoomAvailability(room.id, newDateRange);
+        }
+
+        // ✅ Collect results
+        const finalRooms = await prisma.room.findMany({
+          where: { 
+            propertyRoomTypeId, 
+            isDeleted: false 
+          },
+          include: {
+            availability: {
+              where: { isDeleted: false },
+              orderBy: { date: 'asc' }
+            }
+          }
+        });
+
+        updateResults.push({
+          roomTypeId: propertyRoomTypeId,
+          namePrefix,
+          roomCount: finalRooms.length,
+          fromDate,
+          toDate,
+          rooms: finalRooms.map(room => ({
+            id: room.id,
+            name: room.name,
+            availabilityCount: room.availability.length
+          }))
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Rooms updated successfully',
+        data: {
+          updateResults,
+          summary: {
+            totalRoomTypes: updateResults.length,
+            totalRooms: updateResults.reduce((sum, result) => sum + result.roomCount, 0),
+            totalAvailabilityRecords: updateResults.reduce((sum, result) => 
+              sum + result.rooms.reduce((roomSum, room) => roomSum + room.availabilityCount, 0), 0
+            )
+          }
+        },
+      });
+    } catch (err) {
+      console.error('updateRooms:', err);
+      return res.status(500).json({
+        success: false,
+        message: 'Error updating rooms',
+        error: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+      });
+    }
+  },
+
+  getRoomConfigurations: async (req, res) => {
+    const { propertyId } = req.params;
+
+    try {
+      // Get all property room types with their rooms and availability
+      const propertyRoomTypes = await prisma.propertyRoomType.findMany({
+        where: { 
+          propertyId, 
+          isDeleted: false 
+        },
+        include: {
+          roomType: true,
+          rooms: {
+            where: { isDeleted: false },
+            include: {
+              availability: {
+                where: { isDeleted: false },
+                orderBy: { date: 'asc' }
+              }
+            },
+            orderBy: { name: 'asc' }
+          }
+        }
+      });
+
+      // Transform data to match frontend format
+      const roomConfigurations = propertyRoomTypes.map(prt => {
+        const rooms = prt.rooms;
+        if (rooms.length === 0) {
+          return {
+            propertyRoomTypeId: prt.id,
+            namePrefix: prt.roomType.name,
+            roomCount: 0,
+            fromDate: null,
+            toDate: null,
+            hasRooms: false
+          };
+        }
+
+        // Get date range from availability
+        const allDates = rooms.flatMap(room => 
+          room.availability.map(av => av.date.toISOString().split('T')[0])
+        );
+        
+        const uniqueDates = [...new Set(allDates)].sort();
+        const fromDate = uniqueDates[0] || null;
+        const toDate = uniqueDates[uniqueDates.length - 1] || null;
+
+        // Extract name prefix (remove numbers)
+        const namePrefix = rooms[0]?.name.replace(/\s+\d+$/, '') || prt.roomType.name;
+
+        return {
+          propertyRoomTypeId: prt.id,
+          namePrefix,
+          roomCount: rooms.length,
+          fromDate,
+          toDate,
+          hasRooms: true,
+          rooms: rooms.map(room => ({
+            id: room.id,
+            name: room.name,
+            availabilityCount: room.availability.length
+          }))
+        };
+      });
+
+      return res.status(200).json({
+        success: true,
+        data: roomConfigurations
+      });
+
+    } catch (err) {
+      console.error('getRoomConfigurations error:', err);
+      return res.status(500).json({
+        success: false,
+        message: 'Error fetching room configurations',
+        error: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+      });
+    }
+  },
 
   getRooms: async (req, res) => {
     try {
@@ -1592,6 +1872,94 @@ searchProperties: async (req, res) => {
     return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 }
+};
+
+// ========== HELPER FUNCTIONS ==========
+
+// Generate array of dates between fromDate and toDate
+const generateDateRange = (fromDate, toDate) => {
+  const dates = [];
+  const startDate = new Date(fromDate);
+  const endDate = new Date(toDate);
+  const currentDate = new Date(startDate);
+  
+  while (currentDate <= endDate) {
+    dates.push(new Date(currentDate));
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+  
+  return dates;
+};
+
+// Create availability records for a room
+const createAvailabilityForRoom = async (roomId, dateRange) => {
+  const availabilities = dateRange.map(date => ({
+    roomId,
+    date: new Date(date),
+    minNights: 1,
+    status: 'available',
+    isDeleted: false,
+  }));
+
+  await prisma.availability.createMany({
+    data: availabilities,
+    skipDuplicates: true,
+  });
+};
+
+// Update availability for a room (add/remove dates as needed)
+const updateRoomAvailability = async (roomId, newDateRange) => {
+  // Get existing availability dates
+  const existingAvailability = await prisma.availability.findMany({
+    where: { 
+      roomId, 
+      isDeleted: false 
+    },
+    orderBy: { date: 'asc' }
+  });
+
+  const existingDates = existingAvailability.map(av => 
+    av.date.toISOString().split('T')[0]
+  );
+  
+  const newDates = newDateRange.map(date => 
+    date.toISOString().split('T')[0]
+  );
+
+  // Find dates to delete (exist in DB but not in new range)
+  const datesToDelete = existingDates.filter(date => !newDates.includes(date));
+  
+  // Find dates to add (exist in new range but not in DB)
+  const datesToAdd = newDates.filter(date => !existingDates.includes(date));
+
+  // Soft delete removed dates
+  if (datesToDelete.length > 0) {
+    const deleteDateObjects = datesToDelete.map(date => new Date(date));
+    await prisma.availability.updateMany({
+      where: {
+        roomId,
+        date: { in: deleteDateObjects },
+        isDeleted: false
+      },
+      data: { isDeleted: true }
+    });
+  }
+
+  // Add new dates
+  if (datesToAdd.length > 0) {
+    const newAvailabilityRecords = datesToAdd.map(date => ({
+      roomId,
+      date: new Date(date),
+      minNights: 1,
+      status: 'available',
+      isDeleted: false,
+    }));
+
+    await prisma.availability.createMany({
+      data: newAvailabilityRecords,
+      skipDuplicates: true,
+    });
+  }
 };
 
 module.exports = PropertyController;

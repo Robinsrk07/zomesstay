@@ -37,6 +37,8 @@ export const PROPERTY = {
   PROPERTY_UTILS:'/properties_utils',
   PROPERTY_VALIDATE:'/properties_validate',
   PROPERTY_CREATE:'/properties',
+  ROOM_CONFIGURATIONS: '/properties',
+  UPDATE_ROOMS: '/properties',
 
 };
 
@@ -71,6 +73,12 @@ export const SPECIAL_RATE = {
 
 export const PROPERTY_ROOM_TYPES={
   PROPERTY_ROOM_TYPES:'/propertyRoomType'
+}
+
+export const RATE_PLAN = {
+  SAVE_BULK: '/roomtype-mealplan/save-bulk',
+  UPDATE_BULK: '/roomtype-mealplan/update-bulk',
+  UPDATE: '/rate-plan'
 }
 
 

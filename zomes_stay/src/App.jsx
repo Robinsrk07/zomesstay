@@ -37,7 +37,9 @@ import HostPaymentsTransactions from "./pages/Host/HostPayment";
 import HostPromotionsDiscounts from "./pages/Host/HostPromotionsDiscounts";
 import Inventory from "./pages/Host/Inventory";
 import MealPlan from "./pages/Host/MealPlan";
+import AddRatePlan from "./pages/Host/AddRatePlan";
 import { SearchProvider } from "./context/SearchContext";
+import Best_rates from "./pages/Host/Best_rates";
 //import 'react-datepicker/dist/react-datepicker.css';
 
 export default function App() {
@@ -93,6 +95,8 @@ export default function App() {
           <Route path="host-properties" element={<HostProperties />} />     {/* All Properties */}
           <Route path="properties/add" element={<AddProperty />} /> {/* Add Property */}
           <Route path="inventory_management" element={<Inventory/>} />
+          <Route path="add-rate-plan" element={<AddRatePlan/>} />
+          <Route path="best_available_rates" element={<Best_rates/>} />
           <Route path="meal_plans" element={<MealPlan/>} />
 
           <Route path="host-all_bookings" element={<HostAllBookings />} /> 

@@ -33,6 +33,10 @@ createRoom:(propertyId,formData)=>apiService.post(`${PROPERTY.ROOMS}/${encodeURI
 createPropertyType:(propertyType)=>apiService.post(PROPERTY.PROPERTY_TYPE,propertyType),
 createProperty:(formdata)=>apiService.post(PROPERTY.PROPERTY_CREATE,formdata),
 
+// New room configuration functions
+getRoomConfigurations:(propertyId)=>apiService.get(`${PROPERTY.ROOM_CONFIGURATIONS}/${encodeURIComponent(propertyId)}/room-configurations`),
+updateRooms:(propertyId,formData)=>apiService.put(`${PROPERTY.UPDATE_ROOMS}/${encodeURIComponent(propertyId)}/rooms`,formData),
+
 updateAmenity:(amenityId,amenity)=>apiService.put(`${PROPERTY.AMENITIES}/${encodeURIComponent(amenityId)}`,amenity),
 updateFacility:(facilityId,facility)=>apiService.put(`${PROPERTY.FACILITIES}/${encodeURIComponent(facilityId)}`,facility),
 updateSafety:(safetyId,safety)=>apiService.put(`${PROPERTY.SAFETIES}/${encodeURIComponent(safetyId)}`,safety),

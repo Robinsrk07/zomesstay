@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Calendar, ChevronLeft, ChevronRight, Settings, Filter, Download, Search, Plus, Edit, Eye, BarChart3, TrendingUp, DollarSign, Percent, Save, X, Wrench, Check, Home, Utensils, Target, CalendarDays, IndianRupee, HelpCircle, AlertTriangle, Info } from 'lucide-react';
 import SpecialRateModal from '../../components/SpecialRateModal';
-import RatePlannerModal from '../../components/RatePlannerModal';
 import AddRoomModal from '../../components/AddRoomModal';
 import {specialRateService,propertyService,mealPlanService,inventoryService,specialRateApplicationService,propertyRoomTypeService} from '../../services';
 import { toast } from 'react-toastify';
@@ -9,6 +9,7 @@ import { useSelector } from 'react-redux';
 
 
 const PMSInventory = () => {
+  const navigate = useNavigate();
   const [availabilityData, setAvailabilityData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -23,8 +24,9 @@ const PMSInventory = () => {
   const [mealPlans, setMealPlans] = useState([]);
   const [roomMaintenanceStatus, setRoomMaintenanceStatus] = useState({});
   const [showSpecialRateModal, setShowSpecialRateModal] = useState(false);
-  const [showRatePlannerModal, setShowRatePlannerModal] = useState(false);
   const [showAddRoomModal, setShowAddRoomModal] = useState(false);
+  const [addRoomModalMode, setAddRoomModalMode] = useState('create'); // 'create' or 'edit'
+  const [roomConfigurations, setRoomConfigurations] = useState([]);
   const [specialRates, setSpecialRates] = useState([]);
   const [loadingSpecialRates, setLoadingSpecialRates] = useState(false);
   const [roomTypesMap, setRoomTypesMap] = useState([]);
@@ -195,6 +197,18 @@ const PMSInventory = () => {
     }
   }, [propertyId]);
 
+  // Fetch room configurations to determine button state
+  const fetchRoomConfigurations = useCallback(async () => {
+    try {
+      const response = await propertyService.getRoomConfigurations(propertyId);
+      if (response.data.success) {
+        setRoomConfigurations(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching room configurations:', error);
+    }
+  }, [propertyId]);
+
  
   const getDateRange = useCallback(() => {
     const year = currentDate.getFullYear();
@@ -227,13 +241,83 @@ const PMSInventory = () => {
     const { start, end } = getDateRange();
     fetchAvailability(start, end);
     fetchRoomTypesMap();
+    fetchRoomConfigurations();
     fetchSpecialRates();
     fetchMealPlans()
-  }, [fetchAvailability, getDateRange,fetchMealPlans, fetchRoomTypesMap, fetchSpecialRates]);
+  }, [fetchAvailability, getDateRange,fetchMealPlans, fetchRoomTypesMap, fetchRoomConfigurations, fetchSpecialRates]);
 
  
   const transformApiDataToCalendarFormat = (apiData) => {
     const calendarData = {};
+    
+    // Create dummy data if apiData is undefined or empty
+    if (!apiData || !Array.isArray(apiData) || apiData.length === 0) {
+      console.log('API data is empty, using dummy data');
+      
+      // Generate dummy data for next 30 days
+      const today = new Date();
+      const dummyData = [];
+      
+      for (let i = 0; i < 30; i++) {
+        const date = new Date(today);
+        date.setDate(today.getDate() + i);
+        const dateString = date.toISOString().split('T')[0];
+        
+        dummyData.push({
+          date: dateString,
+          RoomType: [
+            {
+              Type: "Suite",
+              TotalnoofRooms: 5,
+              AvailableRooms: 3,
+              BookedRooms: 1,
+              UnderMaintenance: 1,
+              Rates: 2500,
+              hasSpecialRate: false,
+              appliedSpecialRates: [],
+              Rooms: [
+                { roomId: "1", roomName: "Suite 1", Avilability: [{ status: "available" }] },
+                { roomId: "2", roomName: "Suite 2", Avilability: [{ status: "available" }] },
+                { roomId: "3", roomName: "Suite 3", Avilability: [{ status: "available" }] },
+                { roomId: "4", roomName: "Suite 4", Avilability: [{ status: "booked" }] },
+                { roomId: "5", roomName: "Suite 5", Avilability: [{ status: "maintenance" }] }
+              ]
+            },
+            {
+              Type: "Deluxe",
+              TotalnoofRooms: 8,
+              AvailableRooms: 6,
+              BookedRooms: 1,
+              UnderMaintenance: 1,
+              Rates: 1800,
+              hasSpecialRate: true,
+              appliedSpecialRates: [
+                { id: "1", name: "Weekend Special", type: "percentage", value: 15 }
+              ],
+              Rate: [
+                {
+                  price: 1530, // 1800 - 15%
+                  originalPrice: 1800,
+                  specialRate: { name: "Weekend Special", type: "percentage", value: 15 }
+                }
+              ],
+              Rooms: [
+                { roomId: "6", roomName: "Deluxe 1", Avilability: [{ status: "available" }] },
+                { roomId: "7", roomName: "Deluxe 2", Avilability: [{ status: "available" }] },
+                { roomId: "8", roomName: "Deluxe 3", Avilability: [{ status: "available" }] },
+                { roomId: "9", roomName: "Deluxe 4", Avilability: [{ status: "available" }] },
+                { roomId: "10", roomName: "Deluxe 5", Avilability: [{ status: "available" }] },
+                { roomId: "11", roomName: "Deluxe 6", Avilability: [{ status: "available" }] },
+                { roomId: "12", roomName: "Deluxe 7", Avilability: [{ status: "booked" }] },
+                { roomId: "13", roomName: "Deluxe 8", Avilability: [{ status: "maintenance" }] }
+              ]
+            }
+          ]
+        });
+      }
+      
+      apiData = dummyData;
+    }
 
     apiData.forEach(dayData => {
       const dateKey = dayData.date;
@@ -719,6 +803,20 @@ const PMSInventory = () => {
   const summary = calculateSummary();
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+  // Smart button logic
+  const hasExistingRooms = roomConfigurations.some(config => config.hasRooms);
+  const totalExistingRooms = roomConfigurations.reduce((sum, config) => sum + (config.roomCount || 0), 0);
+  const roomTypesWithRooms = roomConfigurations.filter(config => config.hasRooms).length;
+  
+  const smartButtonText = hasExistingRooms ? 'Update Rooms' : 'Add Room';
+  const smartButtonIcon = hasExistingRooms ? Edit : Plus;
+  const smartButtonMode = hasExistingRooms ? 'edit' : 'create';
+
+  const handleSmartRoomButton = () => {
+    setAddRoomModalMode(smartButtonMode);
+    setShowAddRoomModal(true);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -741,11 +839,17 @@ const PMSInventory = () => {
           <div className="flex items-center space-x-3">
             
             <button 
-              onClick={() => setShowRatePlannerModal(true)}
+              onClick={() => navigate('/host/base/add-rate-plan', { 
+                state: { 
+                  roomTypesMap, 
+                  mealPlans, 
+                  propertyId 
+                } 
+              })}
               className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-violet-600 hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500 transition-colors"
             >
             <Plus size={20} />
-          <span className="hidden sm:inline">Rate Planner</span>
+          <span className="hidden sm:inline">Add Rate</span>
             </button>
             <button 
               onClick={() => setShowSpecialRateModal(true)}
@@ -755,11 +859,22 @@ const PMSInventory = () => {
               <span className="hidden sm:inline">Special Rate</span>
             </button>
             <button 
-              onClick={() => setShowAddRoomModal(true)}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+              onClick={handleSmartRoomButton}
+              className={`inline-flex items-center px-4 py-2 border text-sm font-medium rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors ${
+                hasExistingRooms 
+                  ? 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
+                  : 'border-transparent text-white bg-blue-600 hover:bg-blue-700'
+              }`}
             >
-              <Plus className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">Add Room</span>
+              {React.createElement(smartButtonIcon, { className: "h-4 w-4 mr-2" })}
+              <span className="hidden sm:inline">
+                {smartButtonText}
+                {hasExistingRooms && (
+                  <span className="ml-1 text-xs opacity-75">
+                    ({totalExistingRooms} rooms in {roomTypesWithRooms} type{roomTypesWithRooms !== 1 ? 's' : ''})
+                  </span>
+                )}
+              </span>
             </button>
           </div>
         </div>
@@ -1692,44 +1807,56 @@ const PMSInventory = () => {
         </div>
       )}
 
-      {/* Rate Planner Modal */}
-      <RatePlannerModal
-        isOpen={showRatePlannerModal}
-        onClose={() => setShowRatePlannerModal(false)}
-        roomTypesMap={roomTypesMap}
-        mealPlans={mealPlans}
-        propertyId={propertyId}
-        onSave={async (ratePlans) => {
-          // TODO: Implement API call to save rate plans
-          console.log('Saving rate plans:', ratePlans);
-          // Example: await ratePlannerService.saveRatePlans(propertyId, ratePlans);
-        }}
-      />
 
       {/* Add Room Modal */}
       <AddRoomModal
         isOpen={showAddRoomModal}
         onClose={() => setShowAddRoomModal(false)}
-        roomTypesMap={roomTypesMap}
+        mode={addRoomModalMode}
         propertyId={propertyId}
         onSave={async (roomData) => {
           try {
+            let response;
             
-            // Call the API to create room
-            const response = await propertyService.createRoom(propertyId, roomData);
+            if (addRoomModalMode === 'edit') {
+              // Call the API to update rooms
+              response = await propertyService.updateRooms(propertyId, roomData);
+            } else {
+              // Call the API to create rooms
+              response = await propertyService.createRoom(propertyId, roomData);
+            }
             
             if (response.data.success) {
-              toast.success('Room created successfully!');
+              toast.success(`Room${addRoomModalMode === 'edit' ? 's updated' : ' created'} successfully!`);
               
-              // Refresh availability data
+              // Refresh availability data and room configurations
               const { start, end } = getDateRange();
-              await fetchAvailability(start, end);
+              await Promise.all([
+                fetchAvailability(start, end),
+                fetchRoomConfigurations()
+              ]);
             } else {
-              throw new Error(response.data.message || 'Failed to create room');
+              throw new Error(response.data.message || `Failed to ${addRoomModalMode === 'edit' ? 'update' : 'create'} room${addRoomModalMode === 'edit' ? 's' : ''}`);
             }
           } catch (error) {
-            console.error('Error creating room:', error);
-            toast.error(error.response?.data?.message || 'Failed to create room. Please try again.');
+            console.error(`Error ${addRoomModalMode === 'edit' ? 'updating' : 'creating'} room:`, error);
+            
+            // Handle specific error cases
+            if (error.response?.status === 409) {
+              // Conflict - rooms already exist
+              const errorData = error.response?.data;
+              toast.error(errorData?.message || 'Rooms already exist for this room type. Please use "Edit Rooms" to modify existing rooms.');
+              
+              // Optionally switch to edit mode automatically
+              if (addRoomModalMode === 'create') {
+                setTimeout(() => {
+                  setAddRoomModalMode('edit');
+                  setShowAddRoomModal(true);
+                }, 2000);
+              }
+            } else {
+              toast.error(error.response?.data?.message || `Failed to ${addRoomModalMode === 'edit' ? 'update' : 'create'} room${addRoomModalMode === 'edit' ? 's' : ''}. Please try again.`);
+            }
           }
         }}
       />
